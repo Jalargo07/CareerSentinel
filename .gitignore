@@ -1,0 +1,32 @@
+# Build results
+bin/
+obj/
+
+# IDE
+.vs/
+.vscode/
+*.user
+*.suo
+*.csproj.user
+
+# Secrets
+appsettings.Development.json
+appsettings.*.json
+secrets.json
+seen_jobs.json
+
+# NuGet
+*.nupkg
+packages/
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Node (opencode)
+.opencode/node_modules/
+.opencode/package-lock.json
+
+# User Secrets (local)
+**/Properties/serviceDependencies.json
