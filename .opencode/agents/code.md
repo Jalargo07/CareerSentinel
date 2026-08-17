@@ -8,7 +8,7 @@ permission:
   bash: allow
   glob: allow
   grep: allow
-  task: allow
+
 ---
 
 # ROL: CODER / PROGRAMADOR C# (.NET 8)

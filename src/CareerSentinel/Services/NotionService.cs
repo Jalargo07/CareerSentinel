@@ -79,8 +79,8 @@ public class NotionService
                 ["URL"] = new { url = job.Url },
                 ["id_externo"] = new { rich_text = new[] { new { text = new { content = job.Id } } } },
                 ["Score"] = new { number = evaluation.Score },
-                ["Justificacion"] = new { rich_text = new[] { new { text = new { content = Truncate(evaluation.Justification, 2000) } } } },
-                ["CV Adaptado"] = new { rich_text = new[] { new { text = new { content = Truncate(evaluation.AdaptedCv, 2000) } } } },
+                ["Resumen"] = new { rich_text = new[] { new { text = new { content = Truncate(evaluation.Summary, 2000) } } } },
+                ["Skills coincidentes"] = new { rich_text = new[] { new { text = new { content = string.Join(", ", evaluation.MatchingSkills) } } } },
                 ["Fecha deteccion"] = new { date = new { start = DateTime.UtcNow.ToString("yyyy-MM-dd") } },
             };
 

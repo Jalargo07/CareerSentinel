@@ -1,4 +1,4 @@
-{
+﻿{
   "$schema": "https://opencode.ai/config.json",
   "username": "Jalargo07",
   "model": "opencode-go/mimo-v2.5",
@@ -6,7 +6,7 @@
   "default_agent": "build",
   "agent": {
     "build": {
-      "description": "Orquestador del proyecto. Escucha al usuario, delega a subagentes, reporta resultados. NUNCA escribe código.",
+      "description": "Orquestador del proyecto. Escucha al usuario, delega a subagentes, reporta resultados. NUNCA escribe codigo.",
       "mode": "primary",
       "permission": {
         "read": "allow",
@@ -25,24 +25,24 @@
         "bash": "allow",
         "glob": "allow",
         "grep": "allow",
-        "task": "allow"
+        "task": "deny"
       }
     },
     "plan": {
-      "description": "Planificador: clarifica requisitos y genera task.md antes de codificar.",
+      "description": "Planificador: clarifica requisitos y genera task.md antes de codificar. SOLO puede editar task.md.",
       "mode": "all",
       "model": "opencode-go/mimo-v2.5",
       "permission": {
         "read": "allow",
         "edit": "allow",
-        "bash": "allow",
+        "bash": "deny",
         "glob": "allow",
         "grep": "allow",
-        "task": "allow"
+        "task": "deny"
       }
     },
     "review": {
-      "description": "Auditor de código: revisa calidad, buenas prácticas, emite APROBADO/RECHAZADO.",
+      "description": "Auditor de codigo: revisa calidad, buenas practicas, emite APROBADO/RECHAZADO.",
       "mode": "all",
       "model": "opencode-go/mimo-v2.5",
       "permission": {
@@ -51,11 +51,11 @@
         "bash": "allow",
         "glob": "allow",
         "grep": "allow",
-        "task": "allow"
+        "task": "deny"
       }
     },
     "explore": {
-      "description": "Explorador rápido de codebase. Busca archivos, patrones, responde preguntas del proyecto.",
+      "description": "Explorador rapido de codebase. Busca archivos, patrones, responde preguntas del proyecto.",
       "mode": "all",
       "model": "opencode-go/mimo-v2.5",
       "permission": {
@@ -68,7 +68,7 @@
       }
     },
     "general": {
-      "description": "Agente general para investigación compleja y tareas multi-paso.",
+      "description": "Agente general para investigacion compleja y tareas multi-paso.",
       "mode": "all",
       "model": "opencode-go/mimo-v2.5",
       "permission": {
@@ -77,7 +77,7 @@
         "bash": "allow",
         "glob": "allow",
         "grep": "allow",
-        "task": "allow"
+        "task": "deny"
       }
     }
   }

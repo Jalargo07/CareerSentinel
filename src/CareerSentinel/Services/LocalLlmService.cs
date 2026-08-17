@@ -63,7 +63,7 @@ public class LocalLlmService
             options = new
             {
                 temperature = 0.3,
-                num_predict = 1024,
+                num_predict = 256,
             },
         };
 
@@ -93,15 +93,10 @@ public class LocalLlmService
 
     private static string BuildPrompt(string jobDescription, string myCv)
     {
-        return "Eres un reclutador experto. Evalua la siguiente oferta laboral contra el perfil del candidato.\n\n"
-            + "[PERFIL CANDIDATO]\n" + myCv + "\n\n"
-            + "[OFERTA LABORAL]\n" + jobDescription + "\n\n"
-            + "Instrucciones:\n"
-            + "1. Asigna un puntaje de 0 a 100 de coincidencia entre el perfil y la oferta.\n"
-            + "2. Da una breve justificacion de 2-3 oraciones.\n"
-            + "3. Genera un CV adaptado corto: solo 3-5 vinetas que resalten los puntos mas relevantes para esta oferta especifica.\n\n"
-            + "Responde UNICAMENTE en formato JSON valido con la siguiente estructura:\n"
-            + "{\"score\": 85, \"justification\": \"...\", \"adapted_cv\": \"...\"}";
+        return "Eres un reclutador tecnico senior. Evalua coincidencia CV vs Oferta.\n"
+            + "Responde UNICAMENTE en JSON: {\"score\": 0-100, \"summary\": \"1 frase\", \"matching_skills\": [\"skill1\"]}\n\n"
+            + "CV: " + myCv + "\n"
+            + "OFERTA: " + jobDescription;
     }
 
     private EvaluationResult? ParseEvaluationResult(string rawResponse)
@@ -119,7 +114,7 @@ public class LocalLlmService
         {
             var jsonMatch = System.Text.RegularExpressions.Regex.Match(
                 rawResponse,
-                @"\{[^{}]*""score""[^{}]*\}",
+                @"\{[\s\S]*""score""[\s\S]*\}",
                 System.Text.RegularExpressions.RegexOptions.Singleline);
 
             if (jsonMatch.Success)

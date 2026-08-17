@@ -1,4 +1,4 @@
----
+﻿---
 description: Planificador: clarifica requisitos y genera task.md detallado antes de codificar.
 mode: subagent
 permission:
@@ -7,6 +7,6 @@ permission:
   bash: allow
   glob: allow
   grep: allow
-  task: allow
+  task: deny
 ---
 Plan transforma ideas en tareas atómicas escritas en task.md.

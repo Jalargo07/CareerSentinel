@@ -8,6 +8,16 @@ public class AppSettings
     public TelegramSettings Telegram { get; set; } = new();
     public ScoringSettings Scoring { get; set; } = new();
     public RateLimitSettings RateLimiting { get; set; } = new();
+    public AntiBotSettings AntiBot { get; set; } = new();
+    public Dictionary<string, JobSourceSettings> JobSources { get; set; } = new();
+}
+
+public class AntiBotSettings
+{
+    public bool EnableUserAgentRotation { get; set; } = true;
+    public int MinDelayMs { get; set; } = 1000;
+    public int MaxDelayMs { get; set; } = 3000;
+    public string? ProxyUrl { get; set; }
 }
 
 public class OllamaSettings
@@ -46,4 +56,13 @@ public class RateLimitSettings
 {
     public int DelayBetweenRequestsMs { get; set; } = 3000;
     public int DelayBetweenSearchesMs { get; set; } = 5000;
+}
+
+public class JobSourceSettings
+{
+    public string Name { get; set; } = string.Empty;
+    public bool Enabled { get; set; } = true;
+    public string BaseUrl { get; set; } = string.Empty;
+    public List<string> Keywords { get; set; } = new();
+    public string Location { get; set; } = string.Empty;
 }

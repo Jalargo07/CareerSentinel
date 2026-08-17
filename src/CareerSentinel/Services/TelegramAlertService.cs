@@ -9,41 +9,83 @@ namespace CareerSentinel.Services;
 
 public class TelegramAlertService
 {
-    private readonly TelegramBotClient _botClient;
+    private readonly Lazy<TelegramBotClient?> _botClientLazy;
     private readonly ILogger<TelegramAlertService> _logger;
     private readonly long _chatId;
+    private readonly bool _isConfigured;
+
+    private const string PlaceholderToken = "YOUR_TELEGRAM_BOT_TOKEN";
 
     public TelegramAlertService(IOptions<AppSettings> settings, ILogger<TelegramAlertService> logger)
     {
         _logger = logger;
         var telegramSettings = settings.Value.Telegram;
-        _botClient = new TelegramBotClient(telegramSettings.BotToken);
-        _chatId = long.Parse(telegramSettings.ChatId);
+
+        var token = telegramSettings.BotToken;
+        var chatIdRaw = telegramSettings.ChatId;
+
+        if (string.IsNullOrWhiteSpace(token)
+            || token.Equals(PlaceholderToken, StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(chatIdRaw))
+        {
+            _isConfigured = false;
+            _chatId = 0;
+            _logger.LogWarning(
+                "Telegram no esta configurado. BotToken o ChatId vacios o con valores por defecto. " +
+                "Las alertas de Telegram no se enviaran.");
+        }
+        else
+        {
+            _isConfigured = long.TryParse(chatIdRaw, out var parsedChatId) && parsedChatId > 0;
+            _chatId = parsedChatId;
+
+            if (!_isConfigured)
+            {
+                _logger.LogWarning(
+                    "El ChatId de Telegram no es un numero valido: '{ChatId}'. " +
+                    "Las alertas de Telegram no se enviaran.", chatIdRaw);
+            }
+        }
+
+        _botClientLazy = new Lazy<TelegramBotClient?>(() =>
+        {
+            if (!_isConfigured || string.IsNullOrWhiteSpace(token))
+                return null;
+
+            return new TelegramBotClient(token);
+        });
     }
 
     public async Task SendAlertAsync(JobOffer job, EvaluationResult evaluation, CancellationToken ct = default)
     {
+        var botClient = _botClientLazy.Value;
+        if (botClient is null)
+        {
+            _logger.LogWarning("Telegram no configurado. Se omite envio de alerta para {Title}.", job.Title);
+            return;
+        }
+
         var message = $"""
              Nuevo match fuerte encontrado
 
              Puesto: {job.Title}
              Empresa: {job.Company}
-             Ubicación: {job.Location}
+             Ubicacion: {job.Location}
              Score: {evaluation.Score}/100
              Keywords: {job.SourceKeyword}
 
-             Justificación:
-             {evaluation.Justification}
+             Resumen:
+             {evaluation.Summary}
 
-             CV Adaptado:
-             {evaluation.AdaptedCv}
+             Skills coincidentes:
+             {string.Join(", ", evaluation.MatchingSkills)}
 
              Ver oferta: {job.Url}
              """;
 
         try
         {
-            await _botClient.SendMessage(
+            await botClient.SendMessage(
                 _chatId,
                 message,
                 ParseMode.Markdown,
@@ -61,6 +103,13 @@ public class TelegramAlertService
     {
         if (matches.Count == 0) return;
 
+        var botClient = _botClientLazy.Value;
+        if (botClient is null)
+        {
+            _logger.LogWarning("Telegram no configurado. Se omite envio de resumen diario con {Count} matches.", matches.Count);
+            return;
+        }
+
         var topMatches = matches.OrderByDescending(m => m.Result.Score).Take(10).ToList();
 
         var message = new System.Text.StringBuilder();
@@ -69,14 +118,14 @@ public class TelegramAlertService
 
         foreach (var (job, result) in topMatches)
         {
-            message.AppendLine($"â€¢ {job.Title} @ {job.Company} (Score: {result.Score})");
-            message.AppendLine($"  {result.Justification}");
+            message.AppendLine($"* {job.Title} @ {job.Company} (Score: {result.Score})");
+            message.AppendLine($"  {result.Summary}");
             message.AppendLine();
         }
 
         try
         {
-            await _botClient.SendMessage(
+            await botClient.SendMessage(
                 _chatId,
                 message.ToString(),
                 ParseMode.Markdown,
@@ -90,4 +139,3 @@ public class TelegramAlertService
         }
     }
 }
-

@@ -6,11 +6,9 @@ public record EvaluationResult
 {
     [JsonPropertyName("score")]
     public int Score { get; init; }
-
-    [JsonPropertyName("justification")]
-    public string Justification { get; init; } = string.Empty;
-
-    [JsonPropertyName("adapted_cv")]
-    public string AdaptedCv { get; init; } = string.Empty;
+    [JsonPropertyName("summary")]
+    public string Summary { get; init; } = string.Empty;
+    [JsonPropertyName("matching_skills")]
+    public List<string> MatchingSkills { get; init; } = new();
 }
 

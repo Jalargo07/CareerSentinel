@@ -8,8 +8,10 @@ using Microsoft.Extensions.Options;
 
 namespace CareerSentinel.Services;
 
-public partial class LinkedInScraper : ILinkedInScraper
+public partial class LinkedInScraper : IJobScraper, ILinkedInScraper
 {
+    public string PortalName => "LinkedIn";
+
     private readonly HttpClient _httpClient;
     private readonly ILogger<LinkedInScraper> _logger;
     private readonly LinkedInSettings _settings;

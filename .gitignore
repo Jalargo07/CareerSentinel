@@ -4,29 +4,26 @@ obj/
 
 # IDE
 .vs/
-.vscode/
 *.user
 *.suo
-*.csproj.user
+*.userosscache
+*.sln.docstates
 
-# Secrets
+# Environment files
 appsettings.Development.json
 appsettings.*.json
-secrets.json
+
+# Secrets
+*.secret
+usersecrets.*
+
+# Cache files
 seen_jobs.json
+
+# OS files
+Thumbs.db
+.DS_Store
 
 # NuGet
 *.nupkg
-packages/
-
-# OS
-Thumbs.db
-Desktop.ini
-.DS_Store
-
-# Node (opencode)
-.opencode/node_modules/
-.opencode/package-lock.json
-
-# User Secrets (local)
-**/Properties/serviceDependencies.json
+*.snupkg
