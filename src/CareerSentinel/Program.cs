@@ -8,6 +8,11 @@ using Polly;
 using Polly.Extensions.Http;
 
 // ---------------------------------------------------------------------------
+// 0. Ensure appsettings.json exists (first-time user experience)
+// ---------------------------------------------------------------------------
+EnsureAppSettingsExists();
+
+// ---------------------------------------------------------------------------
 // 1. Build configuration (appsettings.json + environment overlay + User Secrets)
 // ---------------------------------------------------------------------------
 var configuration = new ConfigurationBuilder()
@@ -270,8 +275,82 @@ while (true)
 }
 
 // ---------------------------------------------------------------------------
-// Local helper functions for source management
+// Local helper functions
 // ---------------------------------------------------------------------------
+
+static void EnsureAppSettingsExists()
+{
+    var path = Path.Combine(Directory.GetCurrentDirectory(), "appsettings.json");
+    if (File.Exists(path)) return;
+
+    var defaultConfig = @"{
+  ""AppSettings"": {
+    ""ProcessingMode"": ""API"",
+    ""Ollama"": {
+      ""BaseUrl"": ""http://localhost:11434"",
+      ""ModelName"": ""qwen2.5:3b""
+    },
+    ""OpenCodeGo"": {
+      ""BaseUrl"": ""https://generativelanguage.googleapis.com/v1beta/openai/"",
+      ""ModelName"": ""gemini-3.5-flash-lite"",
+      ""MaxConcurrentRequests"": 2,
+      ""BatchSize"": 5,
+      ""TimeoutSeconds"": 120,
+      ""MaxTokensBatch"": 3500,
+      ""ApiKey"": """"
+    },
+    ""LinkedIn"": {
+      ""BaseUrl"": ""https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"",
+      ""Location"": ""Argentina"",
+      ""Keywords"": []
+    },
+    ""AntiBot"": {
+      ""EnableUserAgentRotation"": true,
+      ""MinDelayMs"": 1000,
+      ""MaxDelayMs"": 3000
+    },
+    ""Candidate"": {
+      ""Name"": ""Tu nombre"",
+      ""Level"": ""Junior"",
+      ""YearsExperience"": 2,
+      ""CoreSkills"": [""Node.js"", ""JavaScript"", ""TypeScript"", ""Python""],
+      ""PreferredModality"": ""Remoto"",
+      ""PreferredRegions"": [""Colombia"", ""Latin America"", ""Europe""],
+      ""CvDescription"": """"
+    },
+    ""JobSources"": {
+      ""LinkedIn"": {
+        ""Enabled"": true,
+        ""Keywords"": [""Node.js"", ""JavaScript"", ""TypeScript"", ""Backend"", ""Full-Stack"", ""Python""],
+        ""Location"": ""Medellin, Colombia""
+      },
+      ""CompuTrabajo"": {
+        ""Enabled"": true,
+        ""Keywords"": [""Node.js"", ""JavaScript"", ""TypeScript"", ""Backend"", ""Full-Stack"", ""Python""],
+        ""Location"": ""Medellin, Colombia""
+      }
+    },
+    ""Scoring"": {
+      ""Threshold"": 75,
+      ""MaxRetries"": 3
+    },
+    ""RateLimiting"": {
+      ""DelayBetweenRequestsMs"": 2000,
+      ""DelayBetweenSearchesMs"": 5000
+    },
+    ""Notion"": {
+      ""ApiKey"": """",
+      ""DatabaseId"": """"
+    },
+    ""Telegram"": {
+      ""BotToken"": """",
+      ""ChatId"": """"
+    }
+  }
+}";
+    File.WriteAllText(path, defaultConfig);
+    Console.WriteLine("  [Config] appsettings.json creado con valores por defecto");
+}
 
 static void ShowSourcesStatus(AppSettings settings)
 {
