@@ -166,7 +166,7 @@ while (true)
 
     switch (option)
     {
-        // 10. Option 1: Run orchestrator
+        // Option 1: Run full search (all sources)
         case 1:
             ConsoleMenu.ShowMessage("Iniciando búsqueda completa...");
             try
@@ -188,21 +188,31 @@ while (true)
             }
             break;
 
-        // 11. Option 2: Show current configuration
+        // Option 2: Show current configuration
         case 2:
             ConsoleMenu.ShowConfig(settings);
             break;
 
-        // Option 7: Run only LinkedIn
-        case 7:
+        // Option 3: Show enabled sources
+        case 3:
+            ShowSourcesStatus(settings);
+            break;
+
+        // Option 4: Enable/disable sources
+        case 4:
+            ToggleSource(settings);
+            break;
+
+        // Option 5: Run only LinkedIn
+        case 5:
             ConsoleMenu.ShowMessage("Iniciando búsqueda en SOLO LinkedIn...");
             try
             {
-                var cts7 = new CancellationTokenSource();
-                Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts7.Cancel(); };
+                var cts5 = new CancellationTokenSource();
+                Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts5.Cancel(); };
 
                 var linkedinOnly = new List<string> { "LinkedIn" };
-                await orchestrator.RunAsync(linkedinOnly, cts7.Token);
+                await orchestrator.RunAsync(linkedinOnly, cts5.Token);
 
                 ConsoleMenu.ShowMessage("Búsqueda en LinkedIn completada exitosamente.");
             }
@@ -216,16 +226,16 @@ while (true)
             }
             break;
 
-        // Option 8: Run only CompuTrabajo
-        case 8:
+        // Option 6: Run only CompuTrabajo
+        case 6:
             ConsoleMenu.ShowMessage("Iniciando búsqueda en SOLO CompuTrabajo...");
             try
             {
-                var cts8 = new CancellationTokenSource();
-                Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts8.Cancel(); };
+                var cts6 = new CancellationTokenSource();
+                Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts6.Cancel(); };
 
                 var ctOnly = new List<string> { "CompuTrabajo" };
-                await orchestrator.RunAsync(ctOnly, cts8.Token);
+                await orchestrator.RunAsync(ctOnly, cts6.Token);
 
                 ConsoleMenu.ShowMessage("Búsqueda en CompuTrabajo completada exitosamente.");
             }
@@ -239,54 +249,20 @@ while (true)
             }
             break;
 
-        // 11. Option 3: Modify keywords at runtime
-        case 3:
-            Console.Write("  Nueva keyword (separada por coma): ");
-            var keywordsInput = Console.ReadLine()?.Trim();
-            if (!string.IsNullOrEmpty(keywordsInput))
-            {
-                settings.LinkedIn.Keywords = keywordsInput
-                    .Split(',')
-                    .Select(k => k.Trim())
-                    .Where(k => !string.IsNullOrEmpty(k))
-                    .ToList();
-                ConsoleMenu.ShowMessage($"Keywords actualizadas: {string.Join(", ", settings.LinkedIn.Keywords)}");
-            }
-            break;
-
-        // 11. Option 4: Modify score threshold at runtime
-        case 4:
-            Console.Write("  Nuevo umbral (0-100): ");
-            if (int.TryParse(Console.ReadLine()?.Trim(), out int newThreshold)
-                && newThreshold >= 0 && newThreshold <= 100)
-            {
-                settings.Scoring.Threshold = newThreshold;
-                ConsoleMenu.ShowMessage($"Umbral actualizado: {newThreshold}");
-            }
-            else
-            {
-                ConsoleMenu.ShowMessage("Valor inválido. Ingrese un número del 0 al 100.");
-            }
-            break;
-
-        // Option 5: Show enabled sources
-        case 5:
-            ShowSourcesStatus(settings);
-            break;
-
-        // Option 6: Enable/disable sources
-        case 6:
-            ToggleSource(settings);
-            break;
-
-        // Option 9: Configure candidate profile
-        case 9:
+        // Option 7: Configure candidate profile
+        case 7:
             ConsoleMenu.ShowCandidateConfig(settings);
             ConsoleMenu.SaveConfiguration(settings);
             break;
 
-        // Option 10: Exit
-        case 10:
+        // Option 8: Configure LLM
+        case 8:
+            ConsoleMenu.ShowLlmConfig(settings);
+            ConsoleMenu.SaveConfiguration(settings);
+            break;
+
+        // Option 9: Exit
+        case 9:
             ConsoleMenu.ShowMessage("Hasta luego!");
             provider.Dispose();
             return;

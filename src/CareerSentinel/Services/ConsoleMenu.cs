@@ -12,14 +12,13 @@ public static class ConsoleMenu
         Console.WriteLine("══════════════════════════════════════════");
         Console.WriteLine("  [1] Ejecutar búsqueda completa (todos)");
         Console.WriteLine("  [2] Ver configuración actual");
-        Console.WriteLine("  [3] Configurar keywords");
-        Console.WriteLine("  [4] Configurar umbral de score");
-        Console.WriteLine("  [5] Ver fuentes habilitadas");
-        Console.WriteLine("  [6] Habilitar/deshabilitar fuentes");
-        Console.WriteLine("  [7] Ejecutar SOLO LinkedIn");
-        Console.WriteLine("  [8] Ejecutar SOLO CompuTrabajo");
-        Console.WriteLine("  [9] Configurar perfil del candidato");
-        Console.WriteLine("  [10] Salir");
+        Console.WriteLine("  [3] Ver fuentes habilitadas");
+        Console.WriteLine("  [4] Habilitar/deshabilitar fuentes");
+        Console.WriteLine("  [5] Ejecutar SOLO LinkedIn");
+        Console.WriteLine("  [6] Ejecutar SOLO CompuTrabajo");
+        Console.WriteLine("  [7] Configurar perfil del candidato");
+        Console.WriteLine("  [8] Configurar LLM (modelo, API key)");
+        Console.WriteLine("  [9] Salir");
         Console.WriteLine("══════════════════════════════════════════");
         Console.Write("  Opción: ");
 
@@ -27,13 +26,13 @@ public static class ConsoleMenu
         {
             var input = Console.ReadLine();
 
-            if (int.TryParse(input, out var option) && option >= 1 && option <= 10)
+            if (int.TryParse(input, out var option) && option >= 1 && option <= 9)
             {
                 Console.WriteLine();
                 return option;
             }
 
-            Console.WriteLine("  Opción inválida. Ingrese un número del 1 al 10.");
+            Console.WriteLine("  Opción inválida. Ingrese un número del 1 al 9.");
             Console.Write("  Opción: ");
         }
     }
@@ -259,6 +258,124 @@ public static class ConsoleMenu
                 default:
                     Console.WriteLine("  Opción inválida.");
                     break;
+            }
+        }
+    }
+
+    public static void ShowLlmConfig(AppSettings settings)
+    {
+        while (true)
+        {
+            Console.WriteLine();
+            Console.WriteLine("══════════════════════════════════════════");
+            Console.WriteLine("  Configuración del Modelo de Lenguaje");
+            Console.WriteLine("══════════════════════════════════════════");
+            Console.WriteLine($"  Processing Mode: {settings.ProcessingMode}");
+            Console.WriteLine($"  API Base URL:     {settings.OpenCodeGo.BaseUrl}");
+            Console.WriteLine($"  API Model:        {settings.OpenCodeGo.ModelName}");
+            Console.WriteLine($"  API Key:          {(string.IsNullOrEmpty(settings.OpenCodeGo.ApiKey) ? "(no configurada)" : "****" + settings.OpenCodeGo.ApiKey[^4..])}");
+            Console.WriteLine($"  Max Tokens Batch: {settings.OpenCodeGo.MaxTokensBatch}");
+            Console.WriteLine($"  Ollama URL:       {settings.Ollama.BaseUrl}");
+            Console.WriteLine($"  Ollama Model:     {settings.Ollama.ModelName}");
+            Console.WriteLine("══════════════════════════════════════════");
+            Console.WriteLine("  [1] Cambiar ProcessingMode (Local/API/Hybrid)");
+            Console.WriteLine("  [2] Cambiar API Key de Gemini");
+            Console.WriteLine("  [3] Cambiar modelo de API");
+            Console.WriteLine("  [4] Cambiar Base URL de API");
+            Console.WriteLine("  [5] Cambiar modelo de Ollama");
+            Console.WriteLine("  [6] Cambiar URL de Ollama");
+            Console.WriteLine("  [0] Volver");
+            Console.WriteLine("══════════════════════════════════════════");
+            Console.Write("  Opción: ");
+
+            var input = Console.ReadLine()?.Trim();
+            Console.WriteLine();
+
+            switch (input)
+            {
+                case "1":
+                    Console.WriteLine("  Modos disponibles:");
+                    Console.WriteLine("    [1] Local   (Ollama, gratis)");
+                    Console.WriteLine("    [2] API     (Gemini/OpenCode, paga tokens)");
+                    Console.WriteLine("    [3] Hybrid  (Ollama Paso1 + API Paso2)");
+                    Console.Write("  Selecciona: ");
+                    var modeInput = Console.ReadLine()?.Trim();
+                    var mode = modeInput switch
+                    {
+                        "1" => ProcessingMode.Local,
+                        "2" => ProcessingMode.API,
+                        "3" => ProcessingMode.Hybrid,
+                        _ => settings.ProcessingMode
+                    };
+                    settings.ProcessingMode = mode;
+                    Console.WriteLine($"  → Modo establecido: {mode}");
+                    break;
+
+                case "2":
+                    Console.Write("  API Key de Gemini (deja vacío para usar User Secrets): ");
+                    var apiKey = Console.ReadLine()?.Trim();
+                    if (apiKey is not null)
+                    {
+                        settings.OpenCodeGo.ApiKey = apiKey;
+                        Console.WriteLine(string.IsNullOrEmpty(apiKey)
+                            ? "  → API Key limpiada (usará User Secrets)"
+                            : "  → API Key actualizada");
+                    }
+                    break;
+
+                case "3":
+                    Console.WriteLine("  Modelos disponibles:");
+                    Console.WriteLine("    [1] gemini-3.5-flash-lite (gratis, rápido)");
+                    Console.WriteLine("    [2] gemini-2.5-flash");
+                    Console.WriteLine("    [3] gemini-2.0-flash");
+                    Console.Write("  Selecciona o escribe uno personalizado: ");
+                    var modelInput = Console.ReadLine()?.Trim();
+                    var model = modelInput switch
+                    {
+                        "1" => "gemini-3.5-flash-lite",
+                        "2" => "gemini-2.5-flash",
+                        "3" => "gemini-2.0-flash",
+                        _ => modelInput
+                    };
+                    if (!string.IsNullOrEmpty(model))
+                    {
+                        settings.OpenCodeGo.ModelName = model;
+                        Console.WriteLine($"  → Modelo establecido: {model}");
+                    }
+                    break;
+
+                case "4":
+                    Console.Write($"  Base URL actual ({settings.OpenCodeGo.BaseUrl}): ");
+                    var url = Console.ReadLine()?.Trim();
+                    if (!string.IsNullOrEmpty(url))
+                    {
+                        settings.OpenCodeGo.BaseUrl = url;
+                        Console.WriteLine($"  → URL establecida: {url}");
+                    }
+                    break;
+
+                case "5":
+                    Console.Write($"  Modelo Ollama actual ({settings.Ollama.ModelName}): ");
+                    var ollamaModel = Console.ReadLine()?.Trim();
+                    if (!string.IsNullOrEmpty(ollamaModel))
+                    {
+                        settings.Ollama.ModelName = ollamaModel;
+                        Console.WriteLine($"  → Modelo Ollama: {ollamaModel}");
+                    }
+                    break;
+
+                case "6":
+                    Console.Write($"  URL Ollama actual ({settings.Ollama.BaseUrl}): ");
+                    var ollamaUrl = Console.ReadLine()?.Trim();
+                    if (!string.IsNullOrEmpty(ollamaUrl))
+                    {
+                        settings.Ollama.BaseUrl = ollamaUrl;
+                        Console.WriteLine($"  → URL Ollama: {ollamaUrl}");
+                    }
+                    break;
+
+                case "0":
+                    return;
             }
         }
     }
