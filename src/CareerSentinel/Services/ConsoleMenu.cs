@@ -7,32 +7,51 @@ public static class ConsoleMenu
     public static int ShowMainMenu()
     {
         Console.WriteLine();
-        Console.WriteLine("══════════════════════════════════════════");
-        Console.WriteLine("  CareerSentinel - Buscador de Empleo");
-        Console.WriteLine("══════════════════════════════════════════");
-        Console.WriteLine("  [1] Ejecutar búsqueda completa (todos)");
-        Console.WriteLine("  [2] Ver configuración actual");
-        Console.WriteLine("  [3] Ver fuentes habilitadas");
-        Console.WriteLine("  [4] Habilitar/deshabilitar fuentes");
-        Console.WriteLine("  [5] Ejecutar SOLO LinkedIn");
-        Console.WriteLine("  [6] Ejecutar SOLO CompuTrabajo");
-        Console.WriteLine("  [7] Configurar perfil del candidato");
-        Console.WriteLine("  [8] Configurar LLM (modelo, API key)");
-        Console.WriteLine("  [9] Salir");
-        Console.WriteLine("══════════════════════════════════════════");
+        Console.WriteLine("════════════════════════════════════════════════════════════");
+        Console.WriteLine("  CareerSentinel - Buscador de Empleo con IA");
+        Console.WriteLine("════════════════════════════════════════════════════════════");
+        Console.WriteLine();
+        Console.WriteLine("  ┌─ PRIMERA VEZ ─────────────────────────────────────────┐");
+        Console.WriteLine("  │  [1] Configurar Telegram                             │");
+        Console.WriteLine("  │      → Solo necesitas tu Chat ID                     │");
+        Console.WriteLine("  │      → Abre: https://t.me/CareerSentinel_bot         │");
+        Console.WriteLine("  │        y envía /start                                │");
+        Console.WriteLine("  │                                                       │");
+        Console.WriteLine("  │  [2] Configurar mi perfil                            │");
+        Console.WriteLine("  │      → Tu nombre, nivel, skills, experiencia         │");
+        Console.WriteLine("  │      → Modalidad y regiones preferidas               │");
+        Console.WriteLine("  │                                                       │");
+        Console.WriteLine("  │  [3] Configurar IA (inteligencia artificial)         │");
+        Console.WriteLine("  │      → Selecciona proveedor (Gemini gratis, etc.)    │");
+        Console.WriteLine("  │      → Ingresa tu API Key                            │");
+        Console.WriteLine("  └───────────────────────────────────────────────────────┘");
+        Console.WriteLine();
+        Console.WriteLine("  ┌─ BUSCAR EMPLEO ───────────────────────────────────────┐");
+        Console.WriteLine("  │  [4] Buscar en TODOS los portales                    │");
+        Console.WriteLine("  │  [5] Buscar solo en LinkedIn                         │");
+        Console.WriteLine("  │  [6] Buscar solo en CompuTrabajo                     │");
+        Console.WriteLine("  └───────────────────────────────────────────────────────┘");
+        Console.WriteLine();
+        Console.WriteLine("  ┌─ UTILIDADES ──────────────────────────────────────────┐");
+        Console.WriteLine("  │  [7] Ver mi configuración actual                     │");
+        Console.WriteLine("  │  [8] Ver fuentes habilitadas                         │");
+        Console.WriteLine("  │  [9] Habilitar/deshabilitar fuentes                  │");
+        Console.WriteLine("  │  [0] Salir                                           │");
+        Console.WriteLine("  └───────────────────────────────────────────────────────┘");
+        Console.WriteLine("════════════════════════════════════════════════════════════");
         Console.Write("  Opción: ");
 
         while (true)
         {
             var input = Console.ReadLine();
 
-            if (int.TryParse(input, out var option) && option >= 1 && option <= 9)
+            if (int.TryParse(input, out var option) && option >= 0 && option <= 9)
             {
                 Console.WriteLine();
                 return option;
             }
 
-            Console.WriteLine("  Opción inválida. Ingrese un número del 1 al 9.");
+            Console.WriteLine("  ❌ Opción inválida. Ingresa un número del 0 al 9.");
             Console.Write("  Opción: ");
         }
     }
@@ -102,28 +121,24 @@ public static class ConsoleMenu
         while (true)
         {
             Console.WriteLine();
-            Console.WriteLine("══════════════════════════════════════════");
-            Console.WriteLine("  Configuración del Candidato");
-            Console.WriteLine("══════════════════════════════════════════");
-            Console.WriteLine($"  Nombre:      {settings.Candidate.Name}");
-            Console.WriteLine($"  Nivel:       {settings.Candidate.Level}");
-            Console.WriteLine($"  Experiencia: {settings.Candidate.YearsExperience} años");
-            Console.WriteLine($"  Skills:      {string.Join(", ", settings.Candidate.CoreSkills)}");
-            Console.WriteLine($"  Modalidad:   {settings.Candidate.PreferredModality}");
-            Console.WriteLine($"  Regiones:    {string.Join(", ", settings.Candidate.PreferredRegions)}");
-            Console.WriteLine($"  Keywords:    {string.Join(", ", settings.LinkedIn.Keywords)}");
-            Console.WriteLine("══════════════════════════════════════════");
-            Console.WriteLine("  [1] Editar nombre");
-            Console.WriteLine("  [2] Editar nivel (Junior/Mid/Senior)");
-            Console.WriteLine("  [3] Editar años de experiencia");
-            Console.WriteLine("  [4] Editar skills principales");
-            Console.WriteLine("  [5] Editar modalidad preferida");
-            Console.WriteLine("  [6] Editar regiones preferidas");
-            Console.WriteLine("  [7] Editar keywords de búsqueda");
-            Console.WriteLine("  [8] Editar descripción CV");
-            Console.WriteLine("  [9] Configurar Chat ID de Telegram");
-            Console.WriteLine("  [0] Volver al menú principal");
-            Console.WriteLine("══════════════════════════════════════════");
+            Console.WriteLine("════════════════════════════════════════════════════════════");
+            Console.WriteLine("  Mi Perfil de Candidato");
+            Console.WriteLine("════════════════════════════════════════════════════════════");
+            Console.WriteLine("  Esta información se usa para evaluar si una oferta");
+            Console.WriteLine("  es compatible contigo. Mientras más precisa, mejor.");
+            Console.WriteLine("────────────────────────────────────────────────────────────");
+            Console.WriteLine($"  [1]  Tu nombre          → {settings.Candidate.Name}");
+            Console.WriteLine($"  [2]  Tu nivel           → {settings.Candidate.Level}");
+            Console.WriteLine($"  [3]  Años experiencia   → {settings.Candidate.YearsExperience}");
+            Console.WriteLine($"  [4]  Tus skills         → {(settings.Candidate.CoreSkills.Count > 0 ? string.Join(", ", settings.Candidate.CoreSkills) : "(no configuradas)")}");
+            Console.WriteLine($"  [5]  Modalidad ideal    → {settings.Candidate.PreferredModality}");
+            Console.WriteLine($"  [6]  Regiones preferidas→ {(settings.Candidate.PreferredRegions.Count > 0 ? string.Join(", ", settings.Candidate.PreferredRegions) : "(no configuradas)")}");
+            Console.WriteLine($"  [7]  Keywords búsqueda  → {(settings.LinkedIn.Keywords.Count > 0 ? string.Join(", ", settings.LinkedIn.Keywords) : "(no configuradas)")}");
+            Console.WriteLine($"  [8]  Descripción CV     → {(string.IsNullOrEmpty(settings.Candidate.CvDescription) ? "(vacía)" : $"{settings.Candidate.CvDescription.Length} caracteres")}");
+            Console.WriteLine($"  [9]  Mi Chat ID Telegram→ {(string.IsNullOrEmpty(settings.Telegram.ChatId) ? "(no configurado)" : settings.Telegram.ChatId)}");
+            Console.WriteLine("────────────────────────────────────────────────────────────");
+            Console.WriteLine("  [0]  Volver al menú principal");
+            Console.WriteLine("════════════════════════════════════════════════════════════");
             Console.Write("  Opción: ");
 
             var input = Console.ReadLine()?.Trim();
@@ -132,17 +147,22 @@ public static class ConsoleMenu
             switch (input)
             {
                 case "1":
-                    Console.Write($"  Nombre actual ({settings.Candidate.Name}): ");
+                    Console.Write($"  Tu nombre actual: {settings.Candidate.Name}");
+                    Console.WriteLine();
+                    Console.Write("  Nuevo nombre: ");
                     var name = Console.ReadLine()?.Trim();
                     if (!string.IsNullOrEmpty(name))
+                    {
                         settings.Candidate.Name = name;
+                        Console.WriteLine($"  ✅ Nombre: {name}");
+                    }
                     break;
 
                 case "2":
-                    Console.WriteLine("  Niveles disponibles:");
-                    Console.WriteLine("    [1] Junior");
-                    Console.WriteLine("    [2] Mid");
-                    Console.WriteLine("    [3] Senior");
+                    Console.WriteLine("  ¿Cuál es tu nivel de experiencia?");
+                    Console.WriteLine("    [1] Junior     → 0-2 años, buscando primer empleo");
+                    Console.WriteLine("    [2] Mid        → 3-5 años, con experiencia sólida");
+                    Console.WriteLine("    [3] Senior     → 5+ años, liderando proyectos");
                     Console.Write("  Selecciona: ");
                     var levelInput = Console.ReadLine()?.Trim();
                     var level = levelInput switch
@@ -153,38 +173,45 @@ public static class ConsoleMenu
                         _ => settings.Candidate.Level
                     };
                     settings.Candidate.Level = level;
-                    Console.WriteLine($"  → Nivel establecido: {level}");
+                    Console.WriteLine($"  ✅ Nivel: {level}");
                     break;
 
                 case "3":
-                    Console.Write($"  Años de experiencia actual ({settings.Candidate.YearsExperience}): ");
+                    Console.Write($"  Años de experiencia: {settings.Candidate.YearsExperience}");
+                    Console.WriteLine();
+                    Console.Write("  Nuevos años: ");
                     var yearsInput = Console.ReadLine()?.Trim();
                     if (int.TryParse(yearsInput, out var years) && years >= 0 && years <= 50)
+                    {
                         settings.Candidate.YearsExperience = years;
+                        Console.WriteLine($"  ✅ Experiencia: {years} años");
+                    }
                     else if (!string.IsNullOrEmpty(yearsInput))
-                        Console.WriteLine("  ❌ Valor inválido. Debe ser un número entre 0 y 50.");
+                        Console.WriteLine("  ❌ Ingresa un número entre 0 y 50.");
                     break;
 
                 case "4":
-                    Console.WriteLine($"  Skills actuales: {string.Join(", ", settings.Candidate.CoreSkills)}");
-                    Console.WriteLine("  Ingresa las skills separadas por coma:");
-                    Console.Write("  → ");
+                    Console.WriteLine("  Tus habilidades técnicas principales.");
+                    Console.WriteLine("  Ejemplo: Node.js, TypeScript, Python, PostgreSQL, React");
+                    Console.WriteLine();
+                    Console.WriteLine($"  Actuales: {(settings.Candidate.CoreSkills.Count > 0 ? string.Join(", ", settings.Candidate.CoreSkills) : "(ninguna)")}");
+                    Console.Write("  Nuevas skills (separadas por coma): ");
                     var skillsInput = Console.ReadLine()?.Trim();
                     if (!string.IsNullOrEmpty(skillsInput))
                     {
                         var skills = skillsInput.Split(',', StringSplitOptions.RemoveEmptyEntries)
                             .Select(s => s.Trim()).ToList();
                         settings.Candidate.CoreSkills = skills;
-                        Console.WriteLine($"  → Skills actualizadas: {string.Join(", ", skills)}");
+                        Console.WriteLine($"  ✅ Skills: {string.Join(", ", skills)}");
                     }
                     break;
 
                 case "5":
-                    Console.WriteLine("  Modalidades disponibles:");
-                    Console.WriteLine("    [1] Remoto");
-                    Console.WriteLine("    [2] Híbrido");
-                    Console.WriteLine("    [3] Presencial");
-                    Console.WriteLine("    [4] Cualquiera");
+                    Console.WriteLine("  ¿Cómo prefieres trabajar?");
+                    Console.WriteLine("    [1] Remoto      → Trabajar desde casa");
+                    Console.WriteLine("    [2] Híbrido     → Mixto oficina/casa");
+                    Console.WriteLine("    [3] Presencial  → Solo oficina");
+                    Console.WriteLine("    [4] Cualquiera  → Sin preferencia");
                     Console.Write("  Selecciona: ");
                     var modalityInput = Console.ReadLine()?.Trim();
                     var modality = modalityInput switch
@@ -196,27 +223,31 @@ public static class ConsoleMenu
                         _ => settings.Candidate.PreferredModality
                     };
                     settings.Candidate.PreferredModality = modality;
-                    Console.WriteLine($"  → Modalidad establecida: {modality}");
+                    Console.WriteLine($"  ✅ Modalidad: {modality}");
                     break;
 
                 case "6":
-                    Console.WriteLine($"  Regiones actuales: {string.Join(", ", settings.Candidate.PreferredRegions)}");
-                    Console.WriteLine("  Ingresa las regiones separadas por coma:");
-                    Console.Write("  → ");
+                    Console.WriteLine("  ¿En qué regiones quieres trabajar?");
+                    Console.WriteLine("  Ejemplo: Colombia, Latin America, Europe, Remote");
+                    Console.WriteLine();
+                    Console.WriteLine($"  Actuales: {(settings.Candidate.PreferredRegions.Count > 0 ? string.Join(", ", settings.Candidate.PreferredRegions) : "(ninguna)")}");
+                    Console.Write("  Nuevas regiones (separadas por coma): ");
                     var regionsInput = Console.ReadLine()?.Trim();
                     if (!string.IsNullOrEmpty(regionsInput))
                     {
                         var regions = regionsInput.Split(',', StringSplitOptions.RemoveEmptyEntries)
                             .Select(r => r.Trim()).ToList();
                         settings.Candidate.PreferredRegions = regions;
-                        Console.WriteLine($"  → Regiones actualizadas: {string.Join(", ", regions)}");
+                        Console.WriteLine($"  ✅ Regiones: {string.Join(", ", regions)}");
                     }
                     break;
 
                 case "7":
-                    Console.WriteLine($"  Keywords actuales: {string.Join(", ", settings.LinkedIn.Keywords)}");
-                    Console.WriteLine("  Ingresa las keywords separadas por coma:");
-                    Console.Write("  → ");
+                    Console.WriteLine("  Palabras clave para buscar ofertas.");
+                    Console.WriteLine("  Ejemplo: Node.js, JavaScript, Backend, Full-Stack");
+                    Console.WriteLine();
+                    Console.WriteLine($"  Actuales: {(settings.LinkedIn.Keywords.Count > 0 ? string.Join(", ", settings.LinkedIn.Keywords) : "(ninguna)")}");
+                    Console.Write("  Nuevas keywords (separadas por coma): ");
                     var keywordsInput = Console.ReadLine()?.Trim();
                     if (!string.IsNullOrEmpty(keywordsInput))
                     {
@@ -225,14 +256,16 @@ public static class ConsoleMenu
                         settings.LinkedIn.Keywords = keywords;
                         if (settings.JobSources.ContainsKey("CompuTrabajo"))
                             settings.JobSources["CompuTrabajo"].Keywords = keywords;
-                        Console.WriteLine($"  → Keywords actualizadas: {string.Join(", ", keywords)}");
+                        Console.WriteLine($"  ✅ Keywords: {string.Join(", ", keywords)}");
                     }
                     break;
 
                 case "8":
-                    Console.WriteLine("  Descripción actual del CV:");
-                    Console.WriteLine($"  {(string.IsNullOrEmpty(settings.Candidate.CvDescription) ? "(vacía)" : settings.Candidate.CvDescription)}");
-                    Console.WriteLine("  Ingresa la nueva descripción (presiona Enter dos veces para terminar):");
+                    Console.WriteLine("  Descripción breve de tu perfil profesional.");
+                    Console.WriteLine("  Esto ayuda a la IA a entender tu perfil.");
+                    Console.WriteLine();
+                    Console.WriteLine($"  Actual: {(string.IsNullOrEmpty(settings.Candidate.CvDescription) ? "(vacía)" : settings.Candidate.CvDescription)}");
+                    Console.WriteLine("  Escribe tu descripción (Enter dos veces para terminar):");
                     var cvLines = new List<string>();
                     while (true)
                     {
@@ -249,18 +282,28 @@ public static class ConsoleMenu
                     if (!string.IsNullOrEmpty(cvDescription))
                     {
                         settings.Candidate.CvDescription = cvDescription;
-                        Console.WriteLine($"  → CV actualizado ({cvDescription.Length} caracteres)");
+                        Console.WriteLine($"  ✅ CV actualizado ({cvDescription.Length} caracteres)");
                     }
                     break;
 
                 case "9":
-                    Console.Write("  Telegram Chat ID (tu ID personal): ");
-                    Console.WriteLine("  (Para obtener tu ID, envía /start a @userinfobot)");
+                    Console.WriteLine("  Tu Chat ID de Telegram para recibir alertas.");
+                    Console.WriteLine();
+                    Console.WriteLine("  Pasos:");
+                    Console.WriteLine("  1. Abre Telegram y busca @userinfobot");
+                    Console.WriteLine("  2. Envía /start");
+                    Console.WriteLine("  3. Copia tu ID numérico");
+                    Console.WriteLine("  4. Pégalo aquí abajo");
+                    Console.WriteLine();
+                    Console.Write($"  Tu Chat ID actual: {(string.IsNullOrEmpty(settings.Telegram.ChatId) ? "(no configurado)" : settings.Telegram.ChatId)}");
+                    Console.WriteLine();
+                    Console.Write("  Nuevo Chat ID: ");
                     var chatId = Console.ReadLine()?.Trim();
                     if (!string.IsNullOrEmpty(chatId))
                     {
                         settings.Telegram.ChatId = chatId;
-                        Console.WriteLine($"  → Chat ID establecido: {chatId}");
+                        Console.WriteLine($"  ✅ Chat ID: {chatId}");
+                        Console.WriteLine("  💡 Prueba enviar /start a @CareerSentinel_bot");
                     }
                     break;
 
@@ -268,10 +311,46 @@ public static class ConsoleMenu
                     return;
 
                 default:
-                    Console.WriteLine("  Opción inválida.");
+                    Console.WriteLine("  ❌ Opción inválida.");
                     break;
             }
         }
+    }
+
+    public static void ShowTelegramConfig(AppSettings settings)
+    {
+        Console.WriteLine("════════════════════════════════════════════════════════════");
+        Console.WriteLine("  Configurar Telegram");
+        Console.WriteLine("════════════════════════════════════════════════════════════");
+        Console.WriteLine();
+        Console.WriteLine("  Para recibir alertas de empleo por Telegram:");
+        Console.WriteLine();
+        Console.WriteLine("  1. Abre Telegram y busca: @CareerSentinel_bot");
+        Console.WriteLine("     ─────────────────────────────────────────");
+        Console.WriteLine("     https://t.me/CareerSentinel_bot");
+        Console.WriteLine("     ─────────────────────────────────────────");
+        Console.WriteLine();
+        Console.WriteLine("  2. Envía /start al bot");
+        Console.WriteLine();
+        Console.WriteLine("  3. Abre @userinfobot y envía /start");
+        Console.WriteLine("     → Copia tu ID numérico");
+        Console.WriteLine();
+        Console.WriteLine($"  Tu Chat ID actual: {(string.IsNullOrEmpty(settings.Telegram.ChatId) ? "(no configurado)" : settings.Telegram.ChatId)}");
+        Console.WriteLine();
+        Console.Write("  Pega tu Chat ID aquí: ");
+        var chatId = Console.ReadLine()?.Trim();
+        if (!string.IsNullOrEmpty(chatId))
+        {
+            settings.Telegram.ChatId = chatId;
+            Console.WriteLine();
+            Console.WriteLine($"  ✅ Chat ID configurado: {chatId}");
+            Console.WriteLine("  💡 Ya puedes recibir alertas de empleo");
+        }
+        else
+        {
+            Console.WriteLine("  ⏭️  Saltado. Puedes configurarlo después con [1]");
+        }
+        Console.WriteLine();
     }
 
     public static void ShowLlmConfig(AppSettings settings)
@@ -514,6 +593,72 @@ public static class ConsoleMenu
         {
             Console.WriteLine($"  ❌ Error al guardar: {ex.Message}");
         }
+    }
+
+    public static void ShowSources(AppSettings settings)
+    {
+        Console.WriteLine();
+        Console.WriteLine("════════════════════════════════════════════════════════════");
+        Console.WriteLine("  Fuentes de Empleo");
+        Console.WriteLine("════════════════════════════════════════════════════════════");
+
+        if (settings.JobSources.Count == 0)
+        {
+            Console.WriteLine("  (No hay fuentes configuradas)");
+        }
+        else
+        {
+            foreach (var source in settings.JobSources)
+            {
+                var status = source.Value.Enabled ? "[✅]" : "[❌]";
+                var label = source.Value.Enabled ? "Habilitado" : "Deshabilitado";
+                Console.WriteLine($"  {status} {source.Key} - {label}");
+            }
+        }
+
+        Console.WriteLine("════════════════════════════════════════════════════════════");
+        Console.WriteLine();
+    }
+
+    public static void ConfigureSources(AppSettings settings)
+    {
+        if (settings.JobSources.Count == 0)
+        {
+            ConsoleMenu.ShowMessage("No hay fuentes configuradas.");
+            return;
+        }
+
+        var sources = settings.JobSources.ToList();
+
+        Console.WriteLine("  Fuentes disponibles:");
+        for (int i = 0; i < sources.Count; i++)
+        {
+            var currentStatus = sources[i].Value.Enabled ? "Habilitado" : "Deshabilitado";
+            Console.WriteLine($"  {i + 1}. {sources[i].Key} (actual: {currentStatus})");
+        }
+
+        Console.Write($"  Selecciona una fuente (1-{sources.Count}): ");
+        if (!int.TryParse(Console.ReadLine()?.Trim(), out int index)
+            || index < 1 || index > sources.Count)
+        {
+            ConsoleMenu.ShowMessage("Selección inválida.");
+            return;
+        }
+
+        Console.Write("  Nuevo estado (true/false): ");
+        var input = Console.ReadLine()?.Trim().ToLowerInvariant();
+        if (input != "true" && input != "false")
+        {
+            ConsoleMenu.ShowMessage("Valor inválido. Ingrese 'true' o 'false'.");
+            return;
+        }
+
+        var enabled = input == "true";
+        var sourceName = sources[index - 1].Key;
+        settings.JobSources[sourceName].Enabled = enabled;
+
+        var newState = enabled ? "Habilitado" : "Deshabilitado";
+        ConsoleMenu.ShowMessage($"{sourceName} ahora está {newState}.");
     }
 
     private static string MaskSecret(string value)

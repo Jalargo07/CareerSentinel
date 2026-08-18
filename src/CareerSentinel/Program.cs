@@ -171,8 +171,26 @@ while (true)
 
     switch (option)
     {
-        // Option 1: Run full search (all sources)
+        // Option 1: Configure Telegram
         case 1:
+            ConsoleMenu.ShowTelegramConfig(settings);
+            ConsoleMenu.SaveConfiguration(settings);
+            break;
+
+        // Option 2: Configure candidate profile
+        case 2:
+            ConsoleMenu.ShowCandidateConfig(settings);
+            ConsoleMenu.SaveConfiguration(settings);
+            break;
+
+        // Option 3: Configure LLM
+        case 3:
+            ConsoleMenu.ShowLlmConfig(settings);
+            ConsoleMenu.SaveConfiguration(settings);
+            break;
+
+        // Option 4: Run full search (all sources)
+        case 4:
             ConsoleMenu.ShowMessage("Iniciando búsqueda completa...");
             try
             {
@@ -191,21 +209,6 @@ while (true)
             {
                 ConsoleMenu.ShowMessage($"Error durante la búsqueda: {ex.Message}");
             }
-            break;
-
-        // Option 2: Show current configuration
-        case 2:
-            ConsoleMenu.ShowConfig(settings);
-            break;
-
-        // Option 3: Show enabled sources
-        case 3:
-            ShowSourcesStatus(settings);
-            break;
-
-        // Option 4: Enable/disable sources
-        case 4:
-            ToggleSource(settings);
             break;
 
         // Option 5: Run only LinkedIn
@@ -254,20 +257,23 @@ while (true)
             }
             break;
 
-        // Option 7: Configure candidate profile
+        // Option 7: Show current configuration
         case 7:
-            ConsoleMenu.ShowCandidateConfig(settings);
-            ConsoleMenu.SaveConfiguration(settings);
+            ConsoleMenu.ShowConfig(settings);
             break;
 
-        // Option 8: Configure LLM
+        // Option 8: Show enabled sources
         case 8:
-            ConsoleMenu.ShowLlmConfig(settings);
-            ConsoleMenu.SaveConfiguration(settings);
+            ConsoleMenu.ShowSources(settings);
             break;
 
-        // Option 9: Exit
+        // Option 9: Enable/disable sources
         case 9:
+            ConsoleMenu.ConfigureSources(settings);
+            break;
+
+        // Option 0: Exit
+        case 0:
             ConsoleMenu.ShowMessage("Hasta luego!");
             provider.Dispose();
             return;
@@ -350,70 +356,4 @@ static void EnsureAppSettingsExists()
 }";
     File.WriteAllText(path, defaultConfig);
     Console.WriteLine("  [Config] appsettings.json creado con valores por defecto");
-}
-
-static void ShowSourcesStatus(AppSettings settings)
-{
-    Console.WriteLine();
-    Console.WriteLine("══════════════════════════════════════════");
-    Console.WriteLine("  Fuentes de Empleo");
-    Console.WriteLine("══════════════════════════════════════════");
-
-    if (settings.JobSources.Count == 0)
-    {
-        Console.WriteLine("  (No hay fuentes configuradas)");
-    }
-    else
-    {
-        foreach (var source in settings.JobSources)
-        {
-            var status = source.Value.Enabled ? "[✅]" : "[❌]";
-            var label = source.Value.Enabled ? "Habilitado" : "Deshabilitado";
-            Console.WriteLine($"  {status} {source.Key} - {label}");
-        }
-    }
-
-    Console.WriteLine("══════════════════════════════════════════");
-    Console.WriteLine();
-}
-
-static void ToggleSource(AppSettings settings)
-{
-    if (settings.JobSources.Count == 0)
-    {
-        ConsoleMenu.ShowMessage("No hay fuentes configuradas.");
-        return;
-    }
-
-    var sources = settings.JobSources.ToList();
-
-    Console.WriteLine("  Fuentes disponibles:");
-    for (int i = 0; i < sources.Count; i++)
-    {
-        var currentStatus = sources[i].Value.Enabled ? "Habilitado" : "Deshabilitado";
-        Console.WriteLine($"  {i + 1}. {sources[i].Key} (actual: {currentStatus})");
-    }
-
-    Console.Write($"  Selecciona una fuente (1-{sources.Count}): ");
-    if (!int.TryParse(Console.ReadLine()?.Trim(), out int index)
-        || index < 1 || index > sources.Count)
-    {
-        ConsoleMenu.ShowMessage("Selección inválida.");
-        return;
-    }
-
-    Console.Write("  Nuevo estado (true/false): ");
-    var input = Console.ReadLine()?.Trim().ToLowerInvariant();
-    if (input != "true" && input != "false")
-    {
-        ConsoleMenu.ShowMessage("Valor inválido. Ingrese 'true' o 'false'.");
-        return;
-    }
-
-    var enabled = input == "true";
-    var sourceName = sources[index - 1].Key;
-    settings.JobSources[sourceName].Enabled = enabled;
-
-    var newState = enabled ? "Habilitado" : "Deshabilitado";
-    ConsoleMenu.ShowMessage($"{sourceName} ahora está {newState}.");
 }
