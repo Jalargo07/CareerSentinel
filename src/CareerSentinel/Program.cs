@@ -16,7 +16,7 @@ EnsureAppSettingsExists();
 // 1. Build configuration (appsettings.json + environment overlay + User Secrets)
 // ---------------------------------------------------------------------------
 var configuration = new ConfigurationBuilder()
-    .SetBasePath(Directory.GetCurrentDirectory())
+    .SetBasePath(AppContext.BaseDirectory)
     .AddJsonFile("appsettings.json", optional: false)
     .AddJsonFile(
         $"appsettings.{Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production"}.json",
@@ -286,7 +286,7 @@ while (true)
 
 static void EnsureAppSettingsExists()
 {
-    var path = Path.Combine(Directory.GetCurrentDirectory(), "appsettings.json");
+    var path = Path.Combine(AppContext.BaseDirectory, "appsettings.json");
     if (File.Exists(path)) return;
 
     var defaultConfig = @"{
