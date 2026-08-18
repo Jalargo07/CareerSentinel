@@ -144,12 +144,12 @@ dotnet run
 ══════════════════════════════════════════
   [1] Run full search (all sources)
   [2] View current configuration
-  [3] Configure keywords
-  [4] Configure score threshold
-  [5] View enabled sources
-  [6] Enable/disable sources
-  [7] Run LinkedIn only
-  [8] Run CompuTrabajo only
+  [3] View enabled sources
+  [4] Enable/disable sources
+  [5] Run LinkedIn only
+  [6] Run CompuTrabajo only
+  [7] Configure candidate profile
+  [8] Configure LLM (model, API key)
   [9] Exit
 ══════════════════════════════════════════
 ```
