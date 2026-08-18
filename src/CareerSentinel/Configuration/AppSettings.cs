@@ -1,5 +1,12 @@
 namespace CareerSentinel.Configuration;
 
+public enum ProcessingMode
+{
+    Local,
+    API,
+    Hybrid
+}
+
 public class AppSettings
 {
     public OllamaSettings Ollama { get; set; } = new();
@@ -10,6 +17,20 @@ public class AppSettings
     public RateLimitSettings RateLimiting { get; set; } = new();
     public AntiBotSettings AntiBot { get; set; } = new();
     public Dictionary<string, JobSourceSettings> JobSources { get; set; } = new();
+    public CandidateProfile Candidate { get; set; } = new();
+    public ProcessingMode ProcessingMode { get; set; } = ProcessingMode.Local;
+    public OpenCodeGoSettings OpenCodeGo { get; set; } = new();
+}
+
+public class OpenCodeGoSettings
+{
+    public string BaseUrl { get; set; } = "https://api.opencode.ai/v1";
+    public string ModelName { get; set; } = "opencode-go/mimo-v2.5";
+    public int MaxConcurrentRequests { get; set; } = 2;
+    public int BatchSize { get; set; } = 5;
+    public int TimeoutSeconds { get; set; } = 120;
+    public int MaxTokensBatch { get; set; } = 3500;
+    public string ApiKey { get; set; } = string.Empty;
 }
 
 public class AntiBotSettings
@@ -65,4 +86,14 @@ public class JobSourceSettings
     public string BaseUrl { get; set; } = string.Empty;
     public List<string> Keywords { get; set; } = new();
     public string Location { get; set; } = string.Empty;
+}
+
+public class CandidateProfile
+{
+    public string Name { get; set; } = string.Empty;
+    public string Level { get; set; } = "Junior"; // Junior, Mid, Senior
+    public int YearsExperience { get; set; } = 2;
+    public List<string> CoreSkills { get; set; } = new();
+    public string PreferredModality { get; set; } = "Remote"; // Remote, OnSite, Hybrid, Any
+    public List<string> PreferredRegions { get; set; } = new() { "Colombia", "Latin America", "Europe" };
 }

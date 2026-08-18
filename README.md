@@ -352,9 +352,9 @@ La solución implementa:
 ## 👨‍💻 Autor
 
 **Tu Nombre**
-- GitHub: [@tu-usuario](https://github.com/tu-usuario)
-- LinkedIn: [Tu LinkedIn](https://linkedin.com/in/tu-perfil)
-- Email: tu-email@ejemplo.com
+- GitHub: [@Jalargo07](https://github.com/Jalargo07/)
+- LinkedIn: [Jorge Largo Rojas](https://www.linkedin.com/in/jorge-alejandro-largo-rojas-010528368/)
+- Email: alejandrolargorojas@gmail.com
 
 ## 📄 Licencia
 

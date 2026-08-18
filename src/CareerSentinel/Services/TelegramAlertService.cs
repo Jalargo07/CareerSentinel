@@ -65,22 +65,27 @@ public class TelegramAlertService
             return;
         }
 
+        var matchIcon = evaluation.Match ? "✅ Match" : "❌ No Match";
+        var cumpleItems = evaluation.Cumple.Count > 0
+            ? string.Join("\n• ", evaluation.Cumple)
+            : "(ninguno identificado)";
+        var noCumpleItems = evaluation.NoCumple.Count > 0
+            ? string.Join("\n• ", evaluation.NoCumple)
+            : "(ninguno identificado)";
+
         var message = $"""
-             Nuevo match fuerte encontrado
+             📋 {job.Title} @ {job.Company}
+             📊 Score: {evaluation.Score}/100 | {matchIcon}
 
-             Puesto: {job.Title}
-             Empresa: {job.Company}
-             Ubicacion: {job.Location}
-             Score: {evaluation.Score}/100
-             Keywords: {job.SourceKeyword}
+             ✅ CUMPLE:
+             • {cumpleItems}
 
-             Resumen:
-             {evaluation.Summary}
+             ❌ NO CUMPLE:
+             • {noCumpleItems}
 
-             Skills coincidentes:
-             {string.Join(", ", evaluation.MatchingSkills)}
+             💬 {evaluation.Razon}
 
-             Ver oferta: {job.Url}
+             🔗 {job.Url}
              """;
 
         try
@@ -119,7 +124,7 @@ public class TelegramAlertService
         foreach (var (job, result) in topMatches)
         {
             message.AppendLine($"* {job.Title} @ {job.Company} (Score: {result.Score})");
-            message.AppendLine($"  {result.Summary}");
+            message.AppendLine($"  {result.Razon}");
             message.AppendLine();
         }
 
@@ -128,7 +133,6 @@ public class TelegramAlertService
             await botClient.SendMessage(
                 _chatId,
                 message.ToString(),
-                ParseMode.Markdown,
                 cancellationToken: ct);
 
             _logger.LogInformation("Resumen diario enviado por Telegram con {Count} matches", topMatches.Count);

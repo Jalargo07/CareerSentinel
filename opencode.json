@@ -44,7 +44,7 @@
     "review": {
       "description": "Auditor de codigo: revisa calidad, buenas practicas, emite APROBADO/RECHAZADO.",
       "mode": "all",
-      "model": "opencode-go/mimo-v2.5",
+      "model": "opencode-go/hy3",
       "permission": {
         "read": "allow",
         "edit": "deny",

@@ -40,10 +40,10 @@ public partial class CompuTrabajoScraper : IJobScraper
     public async Task<List<JobOffer>> SearchAsync(string keyword, string location, CancellationToken ct = default)
     {
         var sanitizedKeyword = SanitizeKeyword(keyword);
-        var url = $"{BaseSearchUrl}/trabajo-de-{sanitizedKeyword}";
+        // AGREGAR ubicación a la URL: -en-medellin-antioquia
+        var url = $"{BaseSearchUrl}/trabajo-de-{sanitizedKeyword}-en-medellin-antioquia";
 
-        _logger.LogInformation("Buscando CompuTrabajo: keyword={Keyword}, location={Location}, url={Url}",
-            keyword, location, url);
+        _logger.LogInformation("Buscando CompuTrabajo: keyword={Keyword}, url={Url} (URL completa: {FullUrl})", keyword, url, url);
 
         SetRandomUserAgent();
 
@@ -78,11 +78,53 @@ public partial class CompuTrabajoScraper : IJobScraper
         try
         {
             var html = await _httpClient.GetStringAsync(jobUrl, ct);
+
+            // Estrategia 1: Buscar por el patrón real de CompuTrabajo
+            // Buscar "Descripción de la oferta" y extraer el contenido siguiente
+            var descriptionMatch = DescriptionRegex().Match(html);
+            if (descriptionMatch.Success)
+            {
+                var rawText = descriptionMatch.Groups[1].Value;
+                // Limpiar HTML tags y normalizar espacios
+                var cleanText = HtmlTagRegex().Replace(rawText, " ");
+                cleanText = MultipleSpaceRegex().Replace(cleanText, " ").Trim();
+                if (cleanText.Length > 50)
+                {
+                    return cleanText;
+                }
+            }
+
+            // Fallback: intentar con AngleSharp - selector p.mbB después de h3 con "Descripción"
             var parser = new HtmlParser();
             var document = await parser.ParseDocumentAsync(html, ct);
 
-            var descriptionElement = document.QuerySelector(".fc-base, .box_description, .job-description, #description");
-            return descriptionElement?.TextContent.Trim() ?? string.Empty;
+            // Buscar el h3 que contiene "Descripción"
+            var h3Elements = document.QuerySelectorAll("h3");
+            foreach (var h3 in h3Elements)
+            {
+                if (h3.TextContent.Contains("Descripci", StringComparison.OrdinalIgnoreCase))
+                {
+                    // El contenido está en el siguiente hermano o padre
+                    var parent = h3.ParentElement;
+                    if (parent is not null)
+                    {
+                        var paragraphs = parent.QuerySelectorAll("p.mbB");
+                        if (paragraphs.Length > 0)
+                        {
+                            return string.Join("\n\n", paragraphs.Select(p => p.TextContent.Trim()));
+                        }
+                    }
+                }
+            }
+
+            // Fallback 2: buscar div.mbB
+            var mbBElements = document.QuerySelectorAll("div.mbB");
+            if (mbBElements.Length > 0)
+            {
+                return string.Join("\n\n", mbBElements.Select(e => e.TextContent.Trim()));
+            }
+
+            return string.Empty;
         }
         catch (OperationCanceledException)
         {
@@ -107,17 +149,26 @@ public partial class CompuTrabajoScraper : IJobScraper
         var parser = new HtmlParser();
         var document = parser.ParseDocument(html);
 
-        var cards = document.QuerySelectorAll("div.box_list, article.box_list, div.bx, li.jobs-list-item");
+        var cards = document.QuerySelectorAll("article.box_offer");
+
+        _logger.LogInformation("CompuTrabajo: HTML parseado, {Count} articles encontrados", cards.Length);
 
         foreach (var card in cards)
         {
-            var titleEl = card.QuerySelector("a.js-o-link, h2 a, h3 a, a[href*='computrabajo']");
-            var companyEl = card.QuerySelector("a.empresa, p.empresa, span.company-name, div.fc_base a");
-            var locationEl = card.QuerySelector("span.location, p.location, span.fc_base span");
-            var dateEl = card.QuerySelector("span.fecha, time, span.date, span.time");
-            var linkEl = card.QuerySelector("a.js-o-link, h2 a, h3 a");
+            // Selector basado en HTML real verificado con curl
+            var linkEl = card.QuerySelector("a.js-o-link");
+            var companyEl = card.QuerySelector("a[offer-grid-article-company-url]");
+            var locationEl = card.QuerySelector("p.fs16.fc_base span.mr10");
+            var dateEl = card.QuerySelector("p.fs13.fc_aux");
 
-            if (titleEl is null || linkEl is null) continue;
+            if (linkEl is null) continue;
+
+            var title = linkEl.TextContent.Trim();
+            if (string.IsNullOrEmpty(title)) continue;
+
+            // Usar data-id del article (más confiable que extraer del href)
+            var id = card.GetAttribute("data-id");
+            if (string.IsNullOrEmpty(id)) continue;
 
             var href = linkEl.GetAttribute("href") ?? string.Empty;
             if (!href.StartsWith("http", StringComparison.OrdinalIgnoreCase))
@@ -125,22 +176,23 @@ public partial class CompuTrabajoScraper : IJobScraper
                 href = $"{BaseSearchUrl}{href}";
             }
 
-            var id = IdFromUrl(href);
-
-            if (string.IsNullOrEmpty(id)) continue;
+            // Limpiar ubicación: "Funza, Cundinamarca" → "Funza, Cundinamarca"
+            var rawLocation = locationEl?.TextContent.Trim() ?? string.Empty;
+            var cleanLocation = string.IsNullOrEmpty(rawLocation) ? location : rawLocation;
 
             jobs.Add(new JobOffer
             {
                 Id = id,
-                Title = titleEl.TextContent.Trim(),
+                Title = title,
                 Company = companyEl?.TextContent.Trim() ?? "Desconocida",
                 Url = href,
-                Location = locationEl?.TextContent.Trim() ?? location,
+                Location = cleanLocation,
                 PostedDate = dateEl?.TextContent.Trim() ?? string.Empty,
                 SourceKeyword = keyword,
             });
         }
 
+        _logger.LogInformation("CompuTrabajo: {Valid}/{Total} ofertas válidas para keyword={Keyword}", jobs.Count, cards.Length, keyword);
         _logger.LogInformation("Encontradas {Count} ofertas en CompuTrabajo para keyword={Keyword}", jobs.Count, keyword);
         return jobs;
     }
@@ -170,26 +222,23 @@ public partial class CompuTrabajoScraper : IJobScraper
     [GeneratedRegex(@"-{2,}")]
     private static partial Regex MultipleDashRegex();
 
-    [GeneratedRegex(@"ofertas-de-trabajo-de-.*?\/([\w-]+)\/(\d+)")]
-    private static partial Regex CompuTrabajoIdRegex();
+    [GeneratedRegex(@"/([\w]{16,})(?:#|$)")]
+    private static partial Regex IdRegex();
 
-    [GeneratedRegex(@"\/([\w-]+)\/(\d+)")]
-    private static partial Regex GenericIdRegex();
+    // Regex para extraer descripción de CompuTrabajo: busca el contenido del
+    // <p class="mbB"> después de "Descripción de la oferta" (después del <h3>)
+    [GeneratedRegex(@"Descripci.{0,5}n de la oferta</h3>[\s\S]*?<p[^>]*class=""mbB""[^>]*>([\s\S]*?)</p>", RegexOptions.IgnoreCase)]
+    private static partial Regex DescriptionRegex();
+
+    [GeneratedRegex(@"<[^>]+>")]
+    private static partial Regex HtmlTagRegex();
+
+    [GeneratedRegex(@"\s{2,}")]
+    private static partial Regex MultipleSpaceRegex();
 
     private static string IdFromUrl(string url)
     {
-        var match = CompuTrabajoIdRegex().Match(url);
-        if (match.Success)
-        {
-            return match.Groups[2].Value;
-        }
-
-        var genericMatch = GenericIdRegex().Match(url);
-        if (genericMatch.Success)
-        {
-            return genericMatch.Groups[2].Value;
-        }
-
-        return string.Empty;
+        var match = IdRegex().Match(url);
+        return match.Success ? match.Groups[1].Value : string.Empty;
     }
 }

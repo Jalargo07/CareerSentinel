@@ -8,7 +8,7 @@ namespace CareerSentinel.Services;
 public class JobOrchestrator
 {
     private readonly IEnumerable<IJobScraper> _scrapers;
-    private readonly LocalLlmService _localLlmService;
+    private readonly ILlmService _llmService;
     private readonly NotionService _notionService;
     private readonly TelegramAlertService _telegramAlertService;
     private readonly IJobCacheService _jobCacheService;
@@ -17,7 +17,7 @@ public class JobOrchestrator
 
     public JobOrchestrator(
         IEnumerable<IJobScraper> scrapers,
-        LocalLlmService localLlmService,
+        ILlmService llmService,
         NotionService notionService,
         TelegramAlertService telegramAlertService,
         IJobCacheService jobCacheService,
@@ -25,7 +25,7 @@ public class JobOrchestrator
         ILogger<JobOrchestrator> logger)
     {
         _scrapers = scrapers;
-        _localLlmService = localLlmService;
+        _llmService = llmService;
         _notionService = notionService;
         _telegramAlertService = telegramAlertService;
         _jobCacheService = jobCacheService;
@@ -33,7 +33,7 @@ public class JobOrchestrator
         _logger = logger;
     }
 
-    public async Task RunAsync(CancellationToken ct = default)
+    public async Task RunAsync(List<string>? scraperFilter = null, CancellationToken ct = default)
     {
         _logger.LogInformation("Inicio del ciclo de orquestación de empleos");
 
@@ -41,12 +41,18 @@ public class JobOrchestrator
         var threshold = _settings.Scoring.Threshold;
 
         // Count enabled scrapers
-        var enabledScrapers = new List<(IJobScraper Scraper, JobSourceSettings Config)>();
+        var activeScrapers = new List<(IJobScraper Scraper, JobSourceSettings Config)>();
         foreach (var scraper in _scrapers)
         {
             if (_settings.JobSources.TryGetValue(scraper.PortalName, out var config) && config.Enabled)
             {
-                enabledScrapers.Add((scraper, config));
+                // Si se especificó un filtro, solo incluir esos scrapers
+                if (scraperFilter is not null && !scraperFilter.Contains(scraper.PortalName))
+                {
+                    _logger.LogInformation("Scraper {PortalName} no seleccionado, saltando", scraper.PortalName);
+                    continue;
+                }
+                activeScrapers.Add((scraper, config));
             }
             else
             {
@@ -54,9 +60,9 @@ public class JobOrchestrator
             }
         }
 
-        _logger.LogInformation("Scrapers habilitados: {Count}", enabledScrapers.Count);
+        _logger.LogInformation("Scrapers activos: {Count}", activeScrapers.Count);
 
-        if (enabledScrapers.Count == 0)
+        if (activeScrapers.Count == 0)
         {
             _logger.LogWarning("No hay scrapers habilitados, terminando ciclo");
             return;
@@ -76,7 +82,7 @@ public class JobOrchestrator
                 _logger.LogWarning(ex, "No se pudieron obtener IDs de Notion, se usa solo caché local");
             }
 
-            foreach (var (scraper, sourceConfig) in enabledScrapers)
+            foreach (var (scraper, sourceConfig) in activeScrapers)
             {
                 if (ct.IsCancellationRequested)
                 {
@@ -119,60 +125,192 @@ public class JobOrchestrator
                         "[{PortalName}] Se encontraron {Count} ofertas para keyword: {Keyword}",
                         scraper.PortalName, offers.Count, keyword);
 
+                    // ============================================
+                    // PIPELINE BATCH: Paso 1 + Paso 2 en lotes de 5
+                    // ============================================
+                    const int batchSize = 5;
+                    var pendingBatch = new List<(JobOffer Offer, string Description)>();
+
+                    // Primero: scraping individual + dedup (sin LLM)
                     foreach (var offer in offers)
                     {
                         if (ct.IsCancellationRequested) break;
 
+                        // Deduplicate against local cache and Notion
+                        if (await _jobCacheService.ContainsAsync(offer.Id, ct))
+                        {
+                            _logger.LogDebug("Oferta {Id} ya fue procesada, se omite", offer.Id);
+                            continue;
+                        }
+
+                        if (existingNotionIds.Contains(offer.Id))
+                        {
+                            _logger.LogDebug("Oferta {Id} ya existe en Notion, se omite", offer.Id);
+                            await _jobCacheService.AddSeenIdAsync(offer.Id, ct);
+                            continue;
+                        }
+
+                        _logger.LogInformation(
+                            "[{PortalName}] [Scrape] {Title} @ {Company}",
+                            scraper.PortalName, offer.Title, offer.Company);
+
+                        // Rate limit before scraping description
+                        await Task.Delay(_settings.RateLimiting.DelayBetweenRequestsMs, ct);
+
+                        // Get full description
+                        var description = await scraper.GetDescriptionAsync(offer.Url, ct);
+
+                        // Guardrail: descripción muy corta = login wall
+                        if (string.IsNullOrWhiteSpace(description) || description.Length < 150)
+                        {
+                            _logger.LogWarning(
+                                "[{PortalName}] Descripción insuficiente ({Length} chars), saltando: {Title}",
+                                scraper.PortalName, description?.Length ?? 0, offer.Title);
+                            await _jobCacheService.AddSeenIdAsync(offer.Id, ct);
+                            continue;
+                        }
+
+                        pendingBatch.Add((offer, description));
+                    }
+
+                    _logger.LogInformation(
+                        "[{PortalName}] Scraping completado: {Count} ofertas con descripción válida",
+                        scraper.PortalName, pendingBatch.Count);
+
+                    if (pendingBatch.Count == 0)
+                    {
+                        // Rate limit between keyword searches
+                        await Task.Delay(_settings.RateLimiting.DelayBetweenSearchesMs, ct);
+                        continue;
+                    }
+
+                    // Procesar en lotes de batchSize
+                    var batchCount = (int)Math.Ceiling((double)pendingBatch.Count / batchSize);
+
+                    for (int batchIdx = 0; batchIdx < pendingBatch.Count; batchIdx += batchSize)
+                    {
+                        if (ct.IsCancellationRequested) break;
+
+                        var batch = pendingBatch.Skip(batchIdx).Take(batchSize).ToList();
+                        var batchNum = (batchIdx / batchSize) + 1;
+
+                        _logger.LogInformation(
+                            "[{PortalName}] [Paso1 batch {Batch}/{Total}] Analizando {Count} ofertas",
+                            scraper.PortalName, batchNum, batchCount, batch.Count);
+
+                        // === PASO 1: Análisis batch (1 llamada API) ===
+                        List<JobAnalysis?> analyses;
                         try
                         {
-                            // Deduplicate against local cache and Notion
-                            if (await _jobCacheService.ContainsAsync(offer.Id, ct))
-                            {
-                                _logger.LogDebug("Oferta {Id} ya fue procesada, se omite", offer.Id);
-                                continue;
-                            }
+                            analyses = await _llmService.AnalyzeBatchAsync(
+                                batch.Select(b => (b.Offer.Title, b.Description)).ToList(), ct);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex,
+                                "[{PortalName}] Error en AnalyzeBatchAsync para lote {Batch}/{Total}",
+                                scraper.PortalName, batchNum, batchCount);
 
-                            if (existingNotionIds.Contains(offer.Id))
+                            // Mark all offers in failed batch as seen to avoid retrying endlessly
+                            foreach (var (offer, _) in batch)
                             {
-                                _logger.LogDebug("Oferta {Id} ya existe en Notion, se omite", offer.Id);
                                 await _jobCacheService.AddSeenIdAsync(offer.Id, ct);
-                                continue;
                             }
+                            continue;
+                        }
 
+                        // Filtrar análisis válidos
+                        var validAnalyses = new List<(JobOffer Offer, string Description, JobAnalysis Analysis)>();
+                        for (int i = 0; i < batch.Count && i < analyses.Count; i++)
+                        {
+                            var analysis = analyses[i];
+                            if (analysis is not null && analysis.EsTextoValido)
+                            {
+                                validAnalyses.Add((batch[i].Offer, batch[i].Description, analysis));
+                            }
+                            else
+                            {
+                                _logger.LogInformation(
+                                    "[{PortalName}] Oferta inválida o sin análisis: {Title}",
+                                    scraper.PortalName, batch[i].Offer.Title);
+                                await _jobCacheService.AddSeenIdAsync(batch[i].Offer.Id, ct);
+                            }
+                        }
+
+                        if (validAnalyses.Count == 0)
+                        {
                             _logger.LogInformation(
-                                "[{PortalName}] Procesando oferta nueva: {Title} @ {Company}",
-                                scraper.PortalName, offer.Title, offer.Company);
+                                "[{PortalName}] [Paso1 batch {Batch}/{Total}] Ninguna oferta válida, saltando Paso 2",
+                                scraper.PortalName, batchNum, batchCount);
+                            continue;
+                        }
 
-                            // Rate limit before scraping description
-                            await Task.Delay(_settings.RateLimiting.DelayBetweenRequestsMs, ct);
+                        _logger.LogInformation(
+                            "[{PortalName}] [Paso1 batch {Batch}/{TotalBatches}] {ValidCount}/{TotalInBatch} ofertas válidas",
+                            scraper.PortalName, batchNum, batchCount, validAnalyses.Count, batch.Count);
 
-                            // Get full description
-                            var description = await scraper.GetDescriptionAsync(offer.Url, ct);
-                            var offerWithDescription = offer with { Description = description };
+                        // Rate limit antes del Paso 2
+                        await Task.Delay(_settings.RateLimiting.DelayBetweenRequestsMs, ct);
 
-                            // Rate limit before LLM call
-                            await Task.Delay(_settings.RateLimiting.DelayBetweenRequestsMs, ct);
+                        // === PASO 2: Evaluación batch (1 llamada API) ===
+                        _logger.LogInformation(
+                            "[{PortalName}] [Paso2 batch {Batch}/{Total}] Evaluando {Count} ofertas",
+                            scraper.PortalName, batchNum, batchCount, validAnalyses.Count);
 
-                            // Evaluate with local LLM
-                            var evaluation = await _localLlmService.EvaluateJobAsync(
-                                description,
-                                _settings.Scoring.CvText,
-                                ct);
+                        var batchRequest = new BatchEvaluationRequest
+                        {
+                            Offers = validAnalyses.Select((v, i) => new OfferToEvaluate
+                            {
+                                Indice = i + 1,
+                                Title = v.Analysis.Titulo,
+                                Company = v.Analysis.Empresa,
+                                Modality = v.Analysis.Modalidad,
+                                Location = v.Analysis.Ubicacion,
+                                Seniority = v.Analysis.SeniorityRequerido,
+                                ExperienceYears = v.Analysis.AnosExperiencia,
+                                Technologies = v.Analysis.TecnologiasClave,
+                                Description = v.Analysis.DescripcionOriginal
+                            }).ToList(),
+                            Candidate = new CandidateInfo
+                            {
+                                Level = _settings.Candidate.Level,
+                                YearsExperience = _settings.Candidate.YearsExperience.ToString(),
+                                PreferredModality = _settings.Candidate.PreferredModality,
+                                PreferredRegions = _settings.Candidate.PreferredRegions.ToList(),
+                                Skills = _settings.Candidate.CoreSkills.ToList()
+                            }
+                        };
 
-                            // Mark as seen regardless of evaluation result
+                        List<EvaluationResult> evaluations;
+                        try
+                        {
+                            evaluations = await _llmService.EvaluateBatchAsync(batchRequest, ct);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex,
+                                "[{PortalName}] Error en EvaluateBatchAsync para lote {Batch}/{Total}",
+                                scraper.PortalName, batchNum, batchCount);
+
+                            // Mark valid analyses as seen to avoid retrying endlessly
+                            foreach (var (offer, _, _) in validAnalyses)
+                            {
+                                await _jobCacheService.AddSeenIdAsync(offer.Id, ct);
+                            }
+                            continue;
+                        }
+
+                        // Procesar resultados
+                        for (int j = 0; j < validAnalyses.Count && j < evaluations.Count; j++)
+                        {
+                            var (offer, description, analysis) = validAnalyses[j];
+                            var evaluation = evaluations[j];
+
                             await _jobCacheService.AddSeenIdAsync(offer.Id, ct);
 
-                            if (evaluation is null)
-                            {
-                                _logger.LogWarning(
-                                    "[{PortalName}] El LLM no pudo evaluar la oferta: {Title}",
-                                    scraper.PortalName, offer.Title);
-                                continue;
-                            }
-
                             _logger.LogInformation(
-                                "[{PortalName}] Evaluación completada: {Title} - Score: {Score}/{Threshold}",
-                                scraper.PortalName, offer.Title, evaluation.Score, threshold);
+                                "[{PortalName}] [Paso2 batch {Batch}/{Total}] Evaluación: {Title} - Score: {Score}/{Threshold} - Match: {Match}",
+                                scraper.PortalName, batchNum, batchCount, offer.Title, evaluation.Score, threshold, evaluation.Match);
 
                             if (evaluation.Score >= threshold)
                             {
@@ -180,6 +318,7 @@ public class JobOrchestrator
                                     "[{PortalName}] Match fuerte detectado: {Title} @ {Company} (Score: {Score})",
                                     scraper.PortalName, offer.Title, offer.Company, evaluation.Score);
 
+                                var offerWithDescription = offer with { Description = analysis.DescripcionOriginal };
                                 allMatches.Add((offerWithDescription, evaluation));
 
                                 // Save to Notion
@@ -189,11 +328,11 @@ public class JobOrchestrator
                                 await _telegramAlertService.SendAlertAsync(offerWithDescription, evaluation, ct);
                             }
                         }
-                        catch (Exception ex)
+
+                        // Rate limit entre batches
+                        if (batchIdx + batchSize < pendingBatch.Count)
                         {
-                            _logger.LogError(ex,
-                                "[{PortalName}] Error al procesar oferta: {Title}",
-                                scraper.PortalName, offer.Title);
+                            await Task.Delay(_settings.RateLimiting.DelayBetweenRequestsMs, ct);
                         }
                     }
 

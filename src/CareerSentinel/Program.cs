@@ -20,11 +20,17 @@ var configuration = new ConfigurationBuilder()
     .Build();
 
 // ---------------------------------------------------------------------------
-// 2. ServiceCollection + ServiceProvider
+// 2. Read processing mode from config
+// ---------------------------------------------------------------------------
+var processingMode = configuration.GetValue<string>("AppSettings:ProcessingMode") ?? "Local";
+Console.WriteLine($"[Config] ProcessingMode: {processingMode}");
+
+// ---------------------------------------------------------------------------
+// 3. ServiceCollection + ServiceProvider
 // ---------------------------------------------------------------------------
 var services = new ServiceCollection();
 
-// 3. Bind AppSettings via IOptions<AppSettings>
+// 4. Bind AppSettings via IOptions<AppSettings>
 services.Configure<AppSettings>(configuration.GetSection("AppSettings"));
 
 // Logging
@@ -69,7 +75,10 @@ services.AddHttpClient("LinkedIn")
     .AddPolicyHandler(circuitBreakerPolicy);
 
 // 5. Ollama HttpClient: retry only (local, no circuit breaker needed)
-services.AddHttpClient("Ollama")
+services.AddHttpClient("Ollama", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(120);
+})
     .AddPolicyHandler(retryPolicy);
 
 // 6a. Notion HttpClient: retry + circuit breaker
@@ -83,8 +92,27 @@ services.AddHttpClient("Telegram")
     .AddPolicyHandler(circuitBreakerPolicy);
 
 // 6c. CompuTrabajo HttpClient: retry only
-services.AddHttpClient("CompuTrabajo")
+services.AddHttpClient("CompuTrabajo", client =>
+{
+    client.DefaultRequestHeaders.Add("Accept-Language", "es-CO,es;q=0.9");
+    client.DefaultRequestHeaders.Add("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+})
     .AddPolicyHandler(retryPolicy);
+
+// 6d. OpenCodeGo HttpClient: retry + circuit breaker
+services.AddHttpClient("OpenCodeGo", (sp, client) =>
+{
+    var settings = sp.GetRequiredService<IOptions<AppSettings>>().Value.OpenCodeGo;
+    client.BaseAddress = new Uri(settings.BaseUrl);
+    client.Timeout = TimeSpan.FromSeconds(settings.TimeoutSeconds);
+
+    if (!string.IsNullOrEmpty(settings.ApiKey))
+    {
+        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {settings.ApiKey}");
+    }
+})
+    .AddPolicyHandler(retryPolicy)
+    .AddPolicyHandler(circuitBreakerPolicy);
 
 // ---------------------------------------------------------------------------
 // 7. Register all services
@@ -96,7 +124,27 @@ services.AddTransient<IJobScraper, CompuTrabajoScraper>();
 
 // Legacy interface (to be removed in a future task)
 services.AddSingleton<ILinkedInScraper, LinkedInScraper>();
+
+// Register all LLM services
 services.AddSingleton<LocalLlmService>();
+services.AddSingleton<OpenCodeGoService>();
+services.AddSingleton<HybridLlmService>();
+
+// Register ILlmService according to processing mode
+switch (processingMode.ToUpperInvariant())
+{
+    case "API":
+        services.AddSingleton<ILlmService>(sp => sp.GetRequiredService<OpenCodeGoService>());
+        break;
+    case "HYBRID":
+        // Hybrid uses Ollama for Paso1 and API for Paso2
+        services.AddSingleton<ILlmService>(sp => sp.GetRequiredService<HybridLlmService>());
+        break;
+    default: // "LOCAL"
+        services.AddSingleton<ILlmService>(sp => sp.GetRequiredService<LocalLlmService>());
+        break;
+}
+
 services.AddSingleton<NotionService>();
 services.AddSingleton<TelegramAlertService>();
 services.AddSingleton<IJobCacheService, JobCacheService>();
@@ -126,7 +174,7 @@ while (true)
                 var cts = new CancellationTokenSource();
                 Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 
-                await orchestrator.RunAsync(cts.Token);
+                await orchestrator.RunAsync(null, cts.Token);
 
                 ConsoleMenu.ShowMessage("Búsqueda completada exitosamente.");
             }
@@ -143,6 +191,52 @@ while (true)
         // 11. Option 2: Show current configuration
         case 2:
             ConsoleMenu.ShowConfig(settings);
+            break;
+
+        // Option 7: Run only LinkedIn
+        case 7:
+            ConsoleMenu.ShowMessage("Iniciando búsqueda en SOLO LinkedIn...");
+            try
+            {
+                var cts7 = new CancellationTokenSource();
+                Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts7.Cancel(); };
+
+                var linkedinOnly = new List<string> { "LinkedIn" };
+                await orchestrator.RunAsync(linkedinOnly, cts7.Token);
+
+                ConsoleMenu.ShowMessage("Búsqueda en LinkedIn completada exitosamente.");
+            }
+            catch (OperationCanceledException)
+            {
+                ConsoleMenu.ShowMessage("Búsqueda cancelada por el usuario.");
+            }
+            catch (Exception ex)
+            {
+                ConsoleMenu.ShowMessage($"Error durante la búsqueda: {ex.Message}");
+            }
+            break;
+
+        // Option 8: Run only CompuTrabajo
+        case 8:
+            ConsoleMenu.ShowMessage("Iniciando búsqueda en SOLO CompuTrabajo...");
+            try
+            {
+                var cts8 = new CancellationTokenSource();
+                Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts8.Cancel(); };
+
+                var ctOnly = new List<string> { "CompuTrabajo" };
+                await orchestrator.RunAsync(ctOnly, cts8.Token);
+
+                ConsoleMenu.ShowMessage("Búsqueda en CompuTrabajo completada exitosamente.");
+            }
+            catch (OperationCanceledException)
+            {
+                ConsoleMenu.ShowMessage("Búsqueda cancelada por el usuario.");
+            }
+            catch (Exception ex)
+            {
+                ConsoleMenu.ShowMessage($"Error durante la búsqueda: {ex.Message}");
+            }
             break;
 
         // 11. Option 3: Modify keywords at runtime
@@ -185,8 +279,8 @@ while (true)
             ToggleSource(settings);
             break;
 
-        // Option 7: Exit
-        case 7:
+        // Option 9: Exit
+        case 9:
             ConsoleMenu.ShowMessage("Hasta luego!");
             provider.Dispose();
             return;

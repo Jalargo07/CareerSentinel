@@ -10,13 +10,15 @@ public static class ConsoleMenu
         Console.WriteLine("══════════════════════════════════════════");
         Console.WriteLine("  CareerSentinel - Buscador de Empleo");
         Console.WriteLine("══════════════════════════════════════════");
-        Console.WriteLine("  [1] Ejecutar búsqueda completa");
+        Console.WriteLine("  [1] Ejecutar búsqueda completa (todos)");
         Console.WriteLine("  [2] Ver configuración actual");
         Console.WriteLine("  [3] Configurar keywords");
         Console.WriteLine("  [4] Configurar umbral de score");
         Console.WriteLine("  [5] Ver fuentes habilitadas");
         Console.WriteLine("  [6] Habilitar/deshabilitar fuentes");
-        Console.WriteLine("  [7] Salir");
+        Console.WriteLine("  [7] Ejecutar SOLO LinkedIn");
+        Console.WriteLine("  [8] Ejecutar SOLO CompuTrabajo");
+        Console.WriteLine("  [9] Salir");
         Console.WriteLine("══════════════════════════════════════════");
         Console.Write("  Opción: ");
 
@@ -24,13 +26,13 @@ public static class ConsoleMenu
         {
             var input = Console.ReadLine();
 
-            if (int.TryParse(input, out var option) && option >= 1 && option <= 7)
+            if (int.TryParse(input, out var option) && option >= 1 && option <= 9)
             {
                 Console.WriteLine();
                 return option;
             }
 
-            Console.WriteLine("  Opción inválida. Ingrese un número del 1 al 7.");
+            Console.WriteLine("  Opción inválida. Ingrese un número del 1 al 9.");
             Console.Write("  Opción: ");
         }
     }
@@ -71,6 +73,28 @@ public static class ConsoleMenu
         Console.WriteLine();
         Console.WriteLine($"  {message}");
         Console.WriteLine();
+    }
+
+    public static string? ShowScraperMenu()
+    {
+        Console.WriteLine();
+        Console.WriteLine("══════════════════════════════════════════");
+        Console.WriteLine("  Seleccionar fuente de empleo");
+        Console.WriteLine("══════════════════════════════════════════");
+        Console.WriteLine("  [1] LinkedIn");
+        Console.WriteLine("  [2] CompuTrabajo");
+        Console.WriteLine("  [3] Todos (cancelar)");
+        Console.WriteLine("══════════════════════════════════════════");
+        Console.Write("  Opción: ");
+
+        var input = Console.ReadLine()?.Trim();
+        return input switch
+        {
+            "1" => "LinkedIn",
+            "2" => "CompuTrabajo",
+            "3" => null, // null = todos
+            _ => null
+        };
     }
 
     private static string MaskSecret(string value)
