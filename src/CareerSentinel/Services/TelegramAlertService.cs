@@ -14,7 +14,7 @@ public class TelegramAlertService
     private readonly long _chatId;
     private readonly bool _isConfigured;
 
-    private const string PlaceholderToken = "YOUR_TELEGRAM_BOT_TOKEN";
+    private const string PlaceholderToken = "PLACEHOLDER_BOT_TOKEN";
 
     public TelegramAlertService(IOptions<AppSettings> settings, ILogger<TelegramAlertService> logger)
     {
@@ -58,6 +58,12 @@ public class TelegramAlertService
 
     public async Task SendAlertAsync(JobOffer job, EvaluationResult evaluation, CancellationToken ct = default)
     {
+        if (!_isConfigured)
+        {
+            _logger.LogWarning("Telegram ChatId no configurado, saltando alerta");
+            return;
+        }
+
         var botClient = _botClientLazy.Value;
         if (botClient is null)
         {
@@ -107,6 +113,12 @@ public class TelegramAlertService
     public async Task SendDailySummaryAsync(List<(JobOffer Job, EvaluationResult Result)> matches, CancellationToken ct = default)
     {
         if (matches.Count == 0) return;
+
+        if (!_isConfigured)
+        {
+            _logger.LogWarning("Telegram ChatId no configurado, saltando resumen diario");
+            return;
+        }
 
         var botClient = _botClientLazy.Value;
         if (botClient is null)

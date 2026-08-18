@@ -121,6 +121,7 @@ public static class ConsoleMenu
             Console.WriteLine("  [6] Editar regiones preferidas");
             Console.WriteLine("  [7] Editar keywords de búsqueda");
             Console.WriteLine("  [8] Editar descripción CV");
+            Console.WriteLine("  [9] Configurar Chat ID de Telegram");
             Console.WriteLine("  [0] Volver al menú principal");
             Console.WriteLine("══════════════════════════════════════════");
             Console.Write("  Opción: ");
@@ -249,6 +250,17 @@ public static class ConsoleMenu
                     {
                         settings.Candidate.CvDescription = cvDescription;
                         Console.WriteLine($"  → CV actualizado ({cvDescription.Length} caracteres)");
+                    }
+                    break;
+
+                case "9":
+                    Console.Write("  Telegram Chat ID (tu ID personal): ");
+                    Console.WriteLine("  (Para obtener tu ID, envía /start a @userinfobot)");
+                    var chatId = Console.ReadLine()?.Trim();
+                    if (!string.IsNullOrEmpty(chatId))
+                    {
+                        settings.Telegram.ChatId = chatId;
+                        Console.WriteLine($"  → Chat ID establecido: {chatId}");
                     }
                     break;
 

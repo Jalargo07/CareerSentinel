@@ -343,7 +343,7 @@ static void EnsureAppSettingsExists()
       ""DatabaseId"": """"
     },
     ""Telegram"": {
-      ""BotToken"": """",
+      ""BotToken"": ""PLACEHOLDER_BOT_TOKEN"",
       ""ChatId"": """"
     }
   }
