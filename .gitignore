@@ -27,3 +27,8 @@ Thumbs.db
 # NuGet
 *.nupkg
 *.snupkg
+
+# Agent system (internal development)
+AGENTS.md
+opencode.json
+task.md.opencode/
