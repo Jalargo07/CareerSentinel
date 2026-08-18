@@ -279,8 +279,14 @@ while (true)
             ToggleSource(settings);
             break;
 
-        // Option 9: Exit
+        // Option 9: Configure candidate profile
         case 9:
+            ConsoleMenu.ShowCandidateConfig(settings);
+            ConsoleMenu.SaveConfiguration(settings);
+            break;
+
+        // Option 10: Exit
+        case 10:
             ConsoleMenu.ShowMessage("Hasta luego!");
             provider.Dispose();
             return;

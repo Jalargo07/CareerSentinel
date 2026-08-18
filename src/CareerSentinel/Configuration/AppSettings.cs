@@ -90,10 +90,11 @@ public class JobSourceSettings
 
 public class CandidateProfile
 {
-    public string Name { get; set; } = string.Empty;
+    public string Name { get; set; } = "Jorge Alejandro Largo Rojas";
     public string Level { get; set; } = "Junior"; // Junior, Mid, Senior
     public int YearsExperience { get; set; } = 2;
     public List<string> CoreSkills { get; set; } = new();
     public string PreferredModality { get; set; } = "Remote"; // Remote, OnSite, Hybrid, Any
     public List<string> PreferredRegions { get; set; } = new() { "Colombia", "Latin America", "Europe" };
+    public string CvDescription { get; set; } = string.Empty;
 }
