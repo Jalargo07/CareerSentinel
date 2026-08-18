@@ -6,6 +6,11 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>dotnet-CareerSentinel-a1b2c3d4-e5f6-7890-abcd-ef1234567890</UserSecretsId>
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <Description>Automated job scraping and AI-powered evaluation system</Description>
+    <Authors>Jorge Alejandro Largo Rojas</Authors>
+    <PackageId>CareerSentinel</PackageId>
   </PropertyGroup>
 
   <ItemGroup>

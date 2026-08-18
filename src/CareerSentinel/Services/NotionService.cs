@@ -49,7 +49,7 @@ public class NotionService
 
             foreach (var page in queryResult.Results)
             {
-                if (page.Properties.TryGetValue("id_externo", out var idProp)
+                if (page.Properties?.TryGetValue("id_externo", out var idProp) == true
                     && idProp.RichText is { Count: > 0 } textArr)
                 {
                     var id = textArr[0]?.PlainText;
