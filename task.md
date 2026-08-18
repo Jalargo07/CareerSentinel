@@ -169,7 +169,7 @@ num_predict de 1024 a 256. Prompt optimo: system + CV text + oferta text → JSO
 | 2 | Reestructuración | Eliminar Worker.cs + Workers/ | `Worker.cs` | ? |
 | 3 | Reestructuración | Completar appsettings.json | `appsettings.json` | ✅ |
 | 4 | Orquestador | Crear JobOrchestrator.cs | `Services/JobOrchestrator.cs` | ✅ |
-| 5 | Orquestador | Crear ConsoleMenu.cs | `Services/ConsoleMenu.cs` | ✅ |
+| 5 | Orquestador | Crear ConsoleMenu.cs (+ ShowLlmConfig con presets) | `Services/ConsoleMenu.cs` | ✅ |
 | 6 | Entry Point | Reescribir Program.cs | `Program.cs` | ✅ |
 | 7 | Secrets | Configurar User Secrets | (CLI) | ✅ |
 | 8 | Secrets | Crear .gitignore | `.gitignore` | ✅ |

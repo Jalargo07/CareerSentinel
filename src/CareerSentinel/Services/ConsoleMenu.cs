@@ -270,20 +270,18 @@ public static class ConsoleMenu
             Console.WriteLine("══════════════════════════════════════════");
             Console.WriteLine("  Configuración del Modelo de Lenguaje");
             Console.WriteLine("══════════════════════════════════════════");
-            Console.WriteLine($"  Processing Mode: {settings.ProcessingMode}");
-            Console.WriteLine($"  API Base URL:     {settings.OpenCodeGo.BaseUrl}");
-            Console.WriteLine($"  API Model:        {settings.OpenCodeGo.ModelName}");
-            Console.WriteLine($"  API Key:          {(string.IsNullOrEmpty(settings.OpenCodeGo.ApiKey) ? "(no configurada)" : "****" + settings.OpenCodeGo.ApiKey[^4..])}");
-            Console.WriteLine($"  Max Tokens Batch: {settings.OpenCodeGo.MaxTokensBatch}");
-            Console.WriteLine($"  Ollama URL:       {settings.Ollama.BaseUrl}");
-            Console.WriteLine($"  Ollama Model:     {settings.Ollama.ModelName}");
+            Console.WriteLine($"  Modo:          {settings.ProcessingMode}");
+            Console.WriteLine($"  API URL:       {settings.OpenCodeGo.BaseUrl}");
+            Console.WriteLine($"  API Model:     {settings.OpenCodeGo.ModelName}");
+            Console.WriteLine($"  API Key:       {(string.IsNullOrEmpty(settings.OpenCodeGo.ApiKey) ? "(no configurada)" : $"****{settings.OpenCodeGo.ApiKey[Math.Max(0, settings.OpenCodeGo.ApiKey.Length - 4)..]}")}");
+            Console.WriteLine($"  Max Tokens:    {settings.OpenCodeGo.MaxTokensBatch}");
+            Console.WriteLine($"  Timeout:       {settings.OpenCodeGo.TimeoutSeconds}s");
+            Console.WriteLine($"  Ollama URL:    {settings.Ollama.BaseUrl}");
+            Console.WriteLine($"  Ollama Model:  {settings.Ollama.ModelName}");
             Console.WriteLine("══════════════════════════════════════════");
-            Console.WriteLine("  [1] Cambiar ProcessingMode (Local/API/Hybrid)");
-            Console.WriteLine("  [2] Cambiar API Key de Gemini");
-            Console.WriteLine("  [3] Cambiar modelo de API");
-            Console.WriteLine("  [4] Cambiar Base URL de API");
-            Console.WriteLine("  [5] Cambiar modelo de Ollama");
-            Console.WriteLine("  [6] Cambiar URL de Ollama");
+            Console.WriteLine("  [1] Cambiar modo (Local/API/Hybrid)");
+            Console.WriteLine("  [2] Seleccionar proveedor de API");
+            Console.WriteLine("  [3] Configurar Ollama local");
             Console.WriteLine("  [0] Volver");
             Console.WriteLine("══════════════════════════════════════════");
             Console.Write("  Opción: ");
@@ -294,90 +292,196 @@ public static class ConsoleMenu
             switch (input)
             {
                 case "1":
-                    Console.WriteLine("  Modos disponibles:");
-                    Console.WriteLine("    [1] Local   (Ollama, gratis)");
-                    Console.WriteLine("    [2] API     (Gemini/OpenCode, paga tokens)");
-                    Console.WriteLine("    [3] Hybrid  (Ollama Paso1 + API Paso2)");
-                    Console.Write("  Selecciona: ");
-                    var modeInput = Console.ReadLine()?.Trim();
-                    var mode = modeInput switch
+                    Console.WriteLine("  Modos:");
+                    Console.WriteLine("    [1] Local   - Ollama (gratis)");
+                    Console.WriteLine("    [2] API     - Proveedor externo");
+                    Console.WriteLine("    [3] Hybrid  - Ollama + API");
+                    Console.Write("  → ");
+                    settings.ProcessingMode = (Console.ReadLine()?.Trim()) switch
                     {
                         "1" => ProcessingMode.Local,
                         "2" => ProcessingMode.API,
                         "3" => ProcessingMode.Hybrid,
                         _ => settings.ProcessingMode
                     };
-                    settings.ProcessingMode = mode;
-                    Console.WriteLine($"  → Modo establecido: {mode}");
+                    Console.WriteLine($"  → Modo: {settings.ProcessingMode}");
                     break;
 
                 case "2":
-                    Console.Write("  API Key de Gemini (deja vacío para usar User Secrets): ");
-                    var apiKey = Console.ReadLine()?.Trim();
-                    if (apiKey is not null)
-                    {
-                        settings.OpenCodeGo.ApiKey = apiKey;
-                        Console.WriteLine(string.IsNullOrEmpty(apiKey)
-                            ? "  → API Key limpiada (usará User Secrets)"
-                            : "  → API Key actualizada");
-                    }
+                    ShowProviderPicker(settings);
                     break;
 
                 case "3":
-                    Console.WriteLine("  Modelos disponibles:");
-                    Console.WriteLine("    [1] gemini-3.5-flash-lite (gratis, rápido)");
-                    Console.WriteLine("    [2] gemini-2.5-flash");
-                    Console.WriteLine("    [3] gemini-2.0-flash");
-                    Console.Write("  Selecciona o escribe uno personalizado: ");
-                    var modelInput = Console.ReadLine()?.Trim();
-                    var model = modelInput switch
-                    {
-                        "1" => "gemini-3.5-flash-lite",
-                        "2" => "gemini-2.5-flash",
-                        "3" => "gemini-2.0-flash",
-                        _ => modelInput
-                    };
-                    if (!string.IsNullOrEmpty(model))
-                    {
-                        settings.OpenCodeGo.ModelName = model;
-                        Console.WriteLine($"  → Modelo establecido: {model}");
-                    }
-                    break;
-
-                case "4":
-                    Console.Write($"  Base URL actual ({settings.OpenCodeGo.BaseUrl}): ");
-                    var url = Console.ReadLine()?.Trim();
-                    if (!string.IsNullOrEmpty(url))
-                    {
-                        settings.OpenCodeGo.BaseUrl = url;
-                        Console.WriteLine($"  → URL establecida: {url}");
-                    }
-                    break;
-
-                case "5":
-                    Console.Write($"  Modelo Ollama actual ({settings.Ollama.ModelName}): ");
-                    var ollamaModel = Console.ReadLine()?.Trim();
-                    if (!string.IsNullOrEmpty(ollamaModel))
-                    {
-                        settings.Ollama.ModelName = ollamaModel;
-                        Console.WriteLine($"  → Modelo Ollama: {ollamaModel}");
-                    }
-                    break;
-
-                case "6":
-                    Console.Write($"  URL Ollama actual ({settings.Ollama.BaseUrl}): ");
-                    var ollamaUrl = Console.ReadLine()?.Trim();
-                    if (!string.IsNullOrEmpty(ollamaUrl))
-                    {
-                        settings.Ollama.BaseUrl = ollamaUrl;
-                        Console.WriteLine($"  → URL Ollama: {ollamaUrl}");
-                    }
+                    ConfigureOllama(settings);
                     break;
 
                 case "0":
                     return;
             }
         }
+    }
+
+    private static void ShowProviderPicker(AppSettings settings)
+    {
+        Console.WriteLine("══════════════════════════════════════════");
+        Console.WriteLine("  Seleccionar Proveedor de API");
+        Console.WriteLine("══════════════════════════════════════════");
+        Console.WriteLine("  GRATIS / BARATOS:");
+        Console.WriteLine("    [1] Gemini 3.5 Flash Lite  (gratis, 1500 req/día)");
+        Console.WriteLine("    [2] Gemini 2.5 Flash       (gratis, 1500 req/día)");
+        Console.WriteLine("    [3] Groq Llama 3.3 70B     (gratis, 30 req/min)");
+        Console.WriteLine("    [4] Groq Gemma 2 9B        (gratis, 30 req/min)");
+        Console.WriteLine("    [5] OpenRouter Free Models (gratis, limitado)");
+        Console.WriteLine("  DE PAGO:");
+        Console.WriteLine("    [6] OpenAI GPT-4o Mini     (~$0.15/1M tokens)");
+        Console.WriteLine("    [7] OpenAI GPT-4o          (~$2.50/1M tokens)");
+        Console.WriteLine("    [8] Anthropic Claude 3.5   (~$3/1M tokens)");
+        Console.WriteLine("    [9] Deepseek Chat          (~$0.14/1M tokens)");
+        Console.WriteLine("    [10] Deepseek Coder        (~$0.28/1M tokens)");
+        Console.WriteLine("  PERSONALIZADO:");
+        Console.WriteLine("    [0] Ingresar URL y modelo manualmente");
+        Console.WriteLine("══════════════════════════════════════════");
+        Console.Write("  Selecciona: ");
+
+        var choice = Console.ReadLine()?.Trim();
+        Console.WriteLine();
+
+        switch (choice)
+        {
+            case "1":
+                settings.OpenCodeGo.BaseUrl = "https://generativelanguage.googleapis.com/v1beta/openai/";
+                settings.OpenCodeGo.ModelName = "gemini-3.5-flash-lite";
+                Console.WriteLine("  → Gemini 3.5 Flash Lite seleccionado");
+                break;
+            case "2":
+                settings.OpenCodeGo.BaseUrl = "https://generativelanguage.googleapis.com/v1beta/openai/";
+                settings.OpenCodeGo.ModelName = "gemini-2.5-flash";
+                Console.WriteLine("  → Gemini 2.5 Flash seleccionado");
+                break;
+            case "3":
+                settings.OpenCodeGo.BaseUrl = "https://api.groq.com/openai/v1/";
+                settings.OpenCodeGo.ModelName = "llama-3.3-70b-versatile";
+                Console.WriteLine("  → Groq Llama 3.3 70B seleccionado");
+                break;
+            case "4":
+                settings.OpenCodeGo.BaseUrl = "https://api.groq.com/openai/v1/";
+                settings.OpenCodeGo.ModelName = "gemma2-9b-it";
+                Console.WriteLine("  → Groq Gemma 2 9B seleccionado");
+                break;
+            case "5":
+                settings.OpenCodeGo.BaseUrl = "https://openrouter.ai/api/v1/";
+                settings.OpenCodeGo.ModelName = "meta-llama/llama-3.1-8b-instruct:free";
+                Console.WriteLine("  → OpenRouter Free seleccionado");
+                break;
+            case "6":
+                settings.OpenCodeGo.BaseUrl = "https://api.openai.com/v1/";
+                settings.OpenCodeGo.ModelName = "gpt-4o-mini";
+                Console.WriteLine("  → OpenAI GPT-4o Mini seleccionado");
+                break;
+            case "7":
+                settings.OpenCodeGo.BaseUrl = "https://api.openai.com/v1/";
+                settings.OpenCodeGo.ModelName = "gpt-4o";
+                Console.WriteLine("  → OpenAI GPT-4o seleccionado");
+                break;
+            case "8":
+                settings.OpenCodeGo.BaseUrl = "https://api.anthropic.com/v1/";
+                settings.OpenCodeGo.ModelName = "claude-3-5-sonnet-20241022";
+                Console.WriteLine("  → Anthropic Claude 3.5 seleccionado");
+                break;
+            case "9":
+                settings.OpenCodeGo.BaseUrl = "https://api.deepseek.com/v1/";
+                settings.OpenCodeGo.ModelName = "deepseek-chat";
+                Console.WriteLine("  → Deepseek Chat seleccionado");
+                break;
+            case "10":
+                settings.OpenCodeGo.BaseUrl = "https://api.deepseek.com/v1/";
+                settings.OpenCodeGo.ModelName = "deepseek-coder";
+                Console.WriteLine("  → Deepseek Coder seleccionado");
+                break;
+            case "0":
+                ConfigureCustomApi(settings);
+                return;
+            default:
+                Console.WriteLine("  Opción inválida.");
+                return;
+        }
+
+        // Pedir API Key
+        Console.Write("  API Key: ");
+        var key = Console.ReadLine()?.Trim();
+        if (!string.IsNullOrEmpty(key))
+            settings.OpenCodeGo.ApiKey = key;
+
+        // Max tokens
+        Console.Write($"  Max Tokens ({settings.OpenCodeGo.MaxTokensBatch}): ");
+        var tokensInput = Console.ReadLine()?.Trim();
+        if (int.TryParse(tokensInput, out var tokens) && tokens > 0)
+            settings.OpenCodeGo.MaxTokensBatch = tokens;
+
+        settings.ProcessingMode = ProcessingMode.API;
+        Console.WriteLine("  → Modo cambiado a API automáticamente");
+    }
+
+    private static void ConfigureCustomApi(AppSettings settings)
+    {
+        Console.WriteLine("══════════════════════════════════════════");
+        Console.WriteLine("  Configurar API Personalizada");
+        Console.WriteLine("══════════════════════════════════════════");
+        Console.WriteLine("  Debe ser compatible con formato OpenAI:");
+        Console.WriteLine("  POST {BaseUrl}/chat/completions");
+        Console.WriteLine("  Headers: Authorization: Bearer {API_KEY}");
+        Console.WriteLine("══════════════════════════════════════════");
+
+        Console.Write($"  Base URL ({settings.OpenCodeGo.BaseUrl}): ");
+        var url = Console.ReadLine()?.Trim();
+        if (!string.IsNullOrEmpty(url))
+            settings.OpenCodeGo.BaseUrl = url;
+
+        Console.Write($"  Modelo ({settings.OpenCodeGo.ModelName}): ");
+        var model = Console.ReadLine()?.Trim();
+        if (!string.IsNullOrEmpty(model))
+            settings.OpenCodeGo.ModelName = model;
+
+        Console.Write("  API Key: ");
+        var key = Console.ReadLine()?.Trim();
+        if (!string.IsNullOrEmpty(key))
+            settings.OpenCodeGo.ApiKey = key;
+
+        Console.Write($"  Max Tokens ({settings.OpenCodeGo.MaxTokensBatch}): ");
+        var tokensInput = Console.ReadLine()?.Trim();
+        if (int.TryParse(tokensInput, out var tokens) && tokens > 0)
+            settings.OpenCodeGo.MaxTokensBatch = tokens;
+
+        Console.Write($"  Timeout segundos ({settings.OpenCodeGo.TimeoutSeconds}): ");
+        var timeoutInput = Console.ReadLine()?.Trim();
+        if (int.TryParse(timeoutInput, out var timeout) && timeout > 0)
+            settings.OpenCodeGo.TimeoutSeconds = timeout;
+
+        settings.ProcessingMode = ProcessingMode.API;
+        Console.WriteLine($"  → API configurada: {settings.OpenCodeGo.ModelName}");
+        Console.WriteLine("  → Modo cambiado a API automáticamente");
+    }
+
+    private static void ConfigureOllama(AppSettings settings)
+    {
+        Console.WriteLine("══════════════════════════════════════════");
+        Console.WriteLine("  Configurar Ollama Local");
+        Console.WriteLine("══════════════════════════════════════════");
+
+        Console.Write($"  URL ({settings.Ollama.BaseUrl}): ");
+        var url = Console.ReadLine()?.Trim();
+        if (!string.IsNullOrEmpty(url))
+            settings.Ollama.BaseUrl = url;
+
+        Console.Write($"  Modelo ({settings.Ollama.ModelName}): ");
+        Console.WriteLine("  (qwen2.5:3b, llama3.1:8b, mistral:7b, etc.)");
+        var model = Console.ReadLine()?.Trim();
+        if (!string.IsNullOrEmpty(model))
+            settings.Ollama.ModelName = model;
+
+        settings.ProcessingMode = ProcessingMode.Local;
+        Console.WriteLine($"  → Ollama: {settings.Ollama.ModelName}");
+        Console.WriteLine("  → Modo cambiado a Local automáticamente");
     }
 
     public static void SaveConfiguration(AppSettings settings)
