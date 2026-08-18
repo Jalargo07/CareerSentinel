@@ -33,3 +33,6 @@ AGENTS.md
 opencode.json
 task.md
 .opencode/
+
+# Build output
+publish/
