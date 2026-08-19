@@ -13,14 +13,14 @@ namespace CareerSentinel.Services;
 
 public class OpenCodeGoService : ILlmService
 {
-    private static readonly string LogDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
-    private static readonly string EvaluationLogPath = Path.Combine(LogDirectory, "evaluaciones.log");
-
     private readonly HttpClient _httpClient;
     private readonly ILogger<OpenCodeGoService> _logger;
     private readonly OpenCodeGoSettings _settings;
     private readonly ScoringSettings _scoringSettings;
     private readonly AsyncRetryPolicy<HttpResponseMessage> _retryPolicy;
+    private readonly AsyncFileLogger _evaluationLogger;
+
+    private static readonly Random _jitterRandom = new();
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -30,19 +30,21 @@ public class OpenCodeGoService : ILlmService
     public OpenCodeGoService(
         IHttpClientFactory httpClientFactory,
         IOptions<AppSettings> settings,
-        ILogger<OpenCodeGoService> logger)
+        ILogger<OpenCodeGoService> logger,
+        AsyncFileLogger evaluationLogger)
     {
         _httpClient = httpClientFactory.CreateClient("OpenCodeGo");
         _logger = logger;
         _settings = settings.Value.OpenCodeGo;
         _scoringSettings = settings.Value.Scoring;
+        _evaluationLogger = evaluationLogger;
 
         _retryPolicy = Policy<HttpResponseMessage>
             .Handle<HttpRequestException>()
             .OrResult(r => !r.IsSuccessStatusCode)
             .WaitAndRetryAsync(
                 _scoringSettings.MaxRetries,
-                retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+                retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt) * (1 + _jitterRandom.NextDouble() * 0.2)),
                 onRetry: (outcome, delay, retryCount, _) =>
                 {
                     _logger.LogWarning(
@@ -73,12 +75,11 @@ public class OpenCodeGoService : ILlmService
                 // Escribir log de evaluaciones (Paso 1)
                 try
                 {
-                    Directory.CreateDirectory(LogDirectory);
                     var entry = $"\n=== API Paso1: {DateTime.Now:yyyy-MM-dd HH:mm:ss} ===\n";
                     entry += $"Título: {jobTitle}\n";
                     entry += $"Descripción ({jobDescription.Length} chars): {(jobDescription.Length > 300 ? jobDescription[..300] + "..." : jobDescription)}\n";
                     entry += $"Análisis: Válido={result.EsTextoValido}, Techs=[{string.Join(", ", result.TecnologiasClave)}]\n\n";
-                    File.AppendAllText(EvaluationLogPath, entry);
+                    await _evaluationLogger.AppendAsync(entry).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -118,7 +119,8 @@ public class OpenCodeGoService : ILlmService
                 YearsExperience = candidate.YearsExperience.ToString(),
                 PreferredModality = candidate.PreferredModality,
                 PreferredRegions = candidate.PreferredRegions.ToList(),
-                Skills = candidate.CoreSkills.ToList()
+                Skills = candidate.CoreSkills.ToList(),
+                CvDescription = candidate.CvDescription
             }
         }, ct);
 
@@ -151,7 +153,6 @@ public class OpenCodeGoService : ILlmService
             // Escribir log de evaluaciones (batch)
             try
             {
-                Directory.CreateDirectory(LogDirectory);
                 var entry = $"\n=== API Batch evaluado: {DateTime.Now:yyyy-MM-dd HH:mm:ss} ===\n";
                 foreach (var offer in request.Offers)
                 {
@@ -160,7 +161,7 @@ public class OpenCodeGoService : ILlmService
                     entry += $"Descripción ({offer.Description?.Length ?? 0} chars): {(offer.Description?.Length > 200 ? offer.Description[..200] + "..." : offer.Description)}\n";
                 }
                 entry += $"Respuesta API: {response}\n\n";
-                File.AppendAllText(EvaluationLogPath, entry);
+                await _evaluationLogger.AppendAsync(entry).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -246,13 +247,17 @@ JSON:
             $"Techs: {string.Join(", ", o.Technologies)}\n" +
             $"Descripción: {o.Description}"));
 
+        var cvLine = string.IsNullOrWhiteSpace(request.Candidate.CvDescription)
+            ? string.Empty
+            : $"\n- CV Descripción: {request.Candidate.CvDescription}";
+
         return $@"Evalúa estas {request.Offers.Count} ofertas contra el perfil del candidato.
 
 PERFIL:
 - Nivel: {request.Candidate.Level} | Años: {request.Candidate.YearsExperience}
 - Modalidad: {request.Candidate.PreferredModality}
 - Regiones: {string.Join(", ", request.Candidate.PreferredRegions)}
-- Skills: {string.Join(", ", request.Candidate.Skills)}
+- Skills: {string.Join(", ", request.Candidate.Skills)}{cvLine}
 
 OFERTAS:
 {offersText}
@@ -347,51 +352,18 @@ REGLAS:
     {
         try
         {
-            var doc = JsonDocument.Parse(rawResponse);
-            var root = doc.RootElement;
-
-            var isValid = false;
-            if (root.TryGetProperty("es_texto_valido", out var etvProp))
-            {
-                isValid = etvProp.ValueKind switch
-                {
-                    JsonValueKind.True => true,
-                    JsonValueKind.False => false,
-                    JsonValueKind.String => etvProp.GetString()?.ToLowerInvariant() is "true" or "yes" or "1",
-                    _ => false
-                };
-            }
-
-            var tecnologias = new List<string>();
-            if (root.TryGetProperty("tecnologias_clave", out var techsProp) && techsProp.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var tech in techsProp.EnumerateArray())
-                {
-                    if (tech.GetString() is string techItem && !string.IsNullOrWhiteSpace(techItem))
-                        tecnologias.Add(techItem);
-                }
-            }
-
-            return new JobAnalysis
-            {
-                EsTextoValido = isValid,
-                Titulo = root.TryGetProperty("titulo", out var t) ? t.GetString() ?? string.Empty : string.Empty,
-                Empresa = root.TryGetProperty("empresa", out var e) ? e.GetString() ?? string.Empty : string.Empty,
-                Modalidad = root.TryGetProperty("modalidad", out var m) ? m.GetString() ?? string.Empty : string.Empty,
-                Ubicacion = root.TryGetProperty("ubicacion", out var u) ? u.GetString() ?? string.Empty : string.Empty,
-                SeniorityRequerido = root.TryGetProperty("seniority_requerido", out var s) ? s.GetString() ?? string.Empty : string.Empty,
-                AnosExperiencia = root.TryGetProperty("anos_experiencia", out var a) ? a.GetString() ?? string.Empty : string.Empty,
-                TecnologiasClave = tecnologias,
-                Resumen = root.TryGetProperty("resumen", out var r) ? r.GetString() ?? string.Empty : string.Empty,
-                Responsabilidades = new List<string>(),
-                RequisitosDeseados = new List<string>()
-            };
+            var result = JsonJobParser.ParseJobAnalysis(rawResponse);
+            if (result is not null)
+                return result;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Error parseando análisis de API");
-            return null;
+            _logger.LogWarning(ex, "Error parseando análisis de API vía JsonJobParser");
         }
+
+        _logger.LogError("No se pudo parsear la respuesta de API para análisis: {Response}",
+            rawResponse[..Math.Min(200, rawResponse.Length)]);
+        return null;
     }
 
     private static string BuildAnalysisBatchPrompt(List<(string Title, string Description)> offers)

@@ -1,4 +1,5 @@
 using CareerSentinel.Configuration;
+using CareerSentinel.Models;
 using CareerSentinel.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -46,11 +47,17 @@ services.AddLogging(builder => builder.AddConsole());
 // ---------------------------------------------------------------------------
 
 // Shared policies
+var jitterRandom = new Random();
 var retryPolicy = HttpPolicyExtensions
     .HandleTransientHttpError()
     .WaitAndRetryAsync(
         retryCount: 3,
-        sleepDurationProvider: retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+        sleepDurationProvider: retryAttempt =>
+        {
+            var baseDelay = Math.Pow(2, retryAttempt);
+            var jitter = 1 + jitterRandom.NextDouble() * 0.2; // +20% randomness
+            return TimeSpan.FromSeconds(baseDelay * jitter);
+        },
         onRetry: (outcome, delay, retryCount, _) =>
         {
             Console.WriteLine($"  [Polly] Retry {retryCount}/3 - waiting {delay.TotalSeconds:F1}s");
@@ -123,12 +130,16 @@ services.AddHttpClient("OpenCodeGo", (sp, client) =>
 // 7. Register all services
 // ---------------------------------------------------------------------------
 
+// Configuration persistence service
+services.AddSingleton<ConfigurationService>();
+
+// Async file logger for evaluation logs (shared across LLM services)
+var evaluationLogPath = Path.Combine(AppContext.BaseDirectory, "logs", "evaluaciones.log");
+services.AddSingleton(new AsyncFileLogger(evaluationLogPath));
+
 // Job scrapers (IJobScraper - polymorphic resolution)
 services.AddTransient<IJobScraper, LinkedInScraper>();
 services.AddTransient<IJobScraper, CompuTrabajoScraper>();
-
-// Legacy interface (to be removed in a future task)
-services.AddSingleton<ILinkedInScraper, LinkedInScraper>();
 
 // Register all LLM services
 services.AddSingleton<LocalLlmService>();
@@ -159,14 +170,35 @@ services.AddSingleton<JobOrchestrator>();
 var provider = services.BuildServiceProvider();
 var orchestrator = provider.GetRequiredService<JobOrchestrator>();
 var settings = provider.GetRequiredService<IOptions<AppSettings>>().Value;
+var configService = provider.GetRequiredService<ConfigurationService>();
 
 // ---------------------------------------------------------------------------
-// 9. Main menu loop
+// 9. First-time setup wizard
+// ---------------------------------------------------------------------------
+if (ConsoleMenu.IsFirstTimeSetup(settings))
+{
+    ConsoleMenu.ShowSetupWizard(settings, configService);
+}
+
+// ---------------------------------------------------------------------------
+// 10. Main menu loop
 // ---------------------------------------------------------------------------
 ConsoleMenu.ShowMessage("CareerSentinel v1.0 - Buscador Inteligente de Empleo");
 
+// Ctrl+C handling for clean exit
+var cts = new CancellationTokenSource();
+Console.CancelKeyPress += (_, e) =>
+{
+    e.Cancel = true;
+    ConsoleMenu.ShowMessage("Saliendo...");
+    cts.Cancel();
+};
+
 while (true)
 {
+    if (cts.Token.IsCancellationRequested)
+        break;
+
     var option = ConsoleMenu.ShowMainMenu();
 
     switch (option)
@@ -174,115 +206,130 @@ while (true)
         // Option 1: Configure Telegram
         case 1:
             ConsoleMenu.ShowTelegramConfig(settings);
-            ConsoleMenu.SaveConfiguration(settings);
+            configService.Save(settings);
+            Console.WriteLine("  ✅ Configuración guardada en appsettings.json");
             break;
 
         // Option 2: Configure candidate profile
         case 2:
             ConsoleMenu.ShowCandidateConfig(settings);
-            ConsoleMenu.SaveConfiguration(settings);
+            configService.Save(settings);
+            Console.WriteLine("  ✅ Configuración guardada en appsettings.json");
             break;
 
         // Option 3: Configure LLM
         case 3:
             ConsoleMenu.ShowLlmConfig(settings);
-            ConsoleMenu.SaveConfiguration(settings);
+            configService.Save(settings);
+            Console.WriteLine("  ✅ Configuración guardada en appsettings.json");
             break;
 
         // Option 4: Run full search (all sources)
         case 4:
-            ConsoleMenu.ShowMessage("Iniciando búsqueda completa...");
-            try
-            {
-                var cts = new CancellationTokenSource();
-                Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
-
-                await orchestrator.RunAsync(null, cts.Token);
-
-                ConsoleMenu.ShowMessage("Búsqueda completada exitosamente.");
-            }
-            catch (OperationCanceledException)
-            {
-                ConsoleMenu.ShowMessage("Búsqueda cancelada por el usuario.");
-            }
-            catch (Exception ex)
-            {
-                ConsoleMenu.ShowMessage($"Error durante la búsqueda: {ex.Message}");
-            }
+            var result4 = await RunSearchAsync(orchestrator, "Iniciando búsqueda completa...", null, "Búsqueda completada exitosamente.");
+            if (result4 is not null)
+                HandlePostSearchMenu(result4, orchestrator, settings, configService);
             break;
 
         // Option 5: Run only LinkedIn
         case 5:
-            ConsoleMenu.ShowMessage("Iniciando búsqueda en SOLO LinkedIn...");
-            try
-            {
-                var cts5 = new CancellationTokenSource();
-                Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts5.Cancel(); };
-
-                var linkedinOnly = new List<string> { "LinkedIn" };
-                await orchestrator.RunAsync(linkedinOnly, cts5.Token);
-
-                ConsoleMenu.ShowMessage("Búsqueda en LinkedIn completada exitosamente.");
-            }
-            catch (OperationCanceledException)
-            {
-                ConsoleMenu.ShowMessage("Búsqueda cancelada por el usuario.");
-            }
-            catch (Exception ex)
-            {
-                ConsoleMenu.ShowMessage($"Error durante la búsqueda: {ex.Message}");
-            }
+            var result5 = await RunSearchAsync(orchestrator, "Iniciando búsqueda en SOLO LinkedIn...", new List<string> { "LinkedIn" }, "Búsqueda en LinkedIn completada exitosamente.");
+            if (result5 is not null)
+                HandlePostSearchMenu(result5, orchestrator, settings, configService);
             break;
 
         // Option 6: Run only CompuTrabajo
         case 6:
-            ConsoleMenu.ShowMessage("Iniciando búsqueda en SOLO CompuTrabajo...");
-            try
-            {
-                var cts6 = new CancellationTokenSource();
-                Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts6.Cancel(); };
-
-                var ctOnly = new List<string> { "CompuTrabajo" };
-                await orchestrator.RunAsync(ctOnly, cts6.Token);
-
-                ConsoleMenu.ShowMessage("Búsqueda en CompuTrabajo completada exitosamente.");
-            }
-            catch (OperationCanceledException)
-            {
-                ConsoleMenu.ShowMessage("Búsqueda cancelada por el usuario.");
-            }
-            catch (Exception ex)
-            {
-                ConsoleMenu.ShowMessage($"Error durante la búsqueda: {ex.Message}");
-            }
+            var result6 = await RunSearchAsync(orchestrator, "Iniciando búsqueda en SOLO CompuTrabajo...", new List<string> { "CompuTrabajo" }, "Búsqueda en CompuTrabajo completada exitosamente.");
+            if (result6 is not null)
+                HandlePostSearchMenu(result6, orchestrator, settings, configService);
             break;
 
-        // Option 7: Show current configuration
+        // Option 7: Show current configuration (read-only)
         case 7:
             ConsoleMenu.ShowConfig(settings);
             break;
 
-        // Option 8: Show enabled sources
+        // Option 8: Edit candidate profile
         case 8:
-            ConsoleMenu.ShowSources(settings);
+            ConsoleMenu.ShowCandidateConfig(settings);
+            configService.Save(settings);
+            Console.WriteLine("  ✅ Configuración guardada en appsettings.json");
             break;
 
-        // Option 9: Enable/disable sources
+        // Option 9: Edit LLM / provider
         case 9:
-            ConsoleMenu.ConfigureSources(settings);
+            ConsoleMenu.ShowLlmConfig(settings);
+            configService.Save(settings);
+            Console.WriteLine("  ✅ Configuración guardada en appsettings.json");
             break;
 
-        // Option 0: Exit
+        // Option 0: Sources submenu
         case 0:
-            ConsoleMenu.ShowMessage("Hasta luego!");
-            provider.Dispose();
-            return;
+            ConsoleMenu.ShowSourcesSubmenu(settings, configService);
+            break;
     }
 }
 
 // ---------------------------------------------------------------------------
 // Local helper functions
 // ---------------------------------------------------------------------------
+
+static async Task<SearchResult?> RunSearchAsync(JobOrchestrator orchestrator, string message, List<string>? sources, string successMessage)
+{
+    ConsoleMenu.ShowMessage(message);
+    try
+    {
+        var cts = new CancellationTokenSource();
+        Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
+
+        var result = await orchestrator.RunAsync(sources, cts.Token);
+
+        ConsoleMenu.ShowMessage(successMessage);
+        return result;
+    }
+    catch (OperationCanceledException)
+    {
+        ConsoleMenu.ShowMessage("Búsqueda cancelada por el usuario.");
+        return null;
+    }
+    catch (Exception ex)
+    {
+        ConsoleMenu.ShowMessage($"Error durante la búsqueda: {ex.Message}");
+        return null;
+    }
+}
+
+static void HandlePostSearchMenu(SearchResult result, JobOrchestrator orchestrator, AppSettings settings, ConfigurationService configService)
+{
+    while (true)
+    {
+        var option = ConsoleMenu.ShowResultsMenu(result.TotalProcessed, result.Matched, result.Saved);
+
+        switch (option)
+        {
+            case 1:
+                ConsoleMenu.ShowMessage("Revisa Notion para ver las ofertas guardadas.");
+                break;
+
+            case 2:
+                return; // Volver al loop principal para re-elegir opción de búsqueda
+
+            case 3:
+                ConsoleMenu.ShowCandidateConfig(settings);
+                configService.Save(settings);
+                Console.WriteLine("  ✅ Configuración guardada en appsettings.json");
+                break;
+
+            case 4:
+                ConsoleMenu.ShowConfig(settings);
+                break;
+
+            case 0:
+                return; // Volver al menú principal
+        }
+    }
+}
 
 static void EnsureAppSettingsExists()
 {

@@ -70,7 +70,6 @@ public class ScoringSettings
 {
     public int Threshold { get; set; } = 85;
     public int MaxRetries { get; set; } = 3;
-    public string CvText { get; set; } = string.Empty;
 }
 
 public class RateLimitSettings

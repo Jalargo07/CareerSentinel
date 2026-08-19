@@ -14,6 +14,7 @@ public partial class CompuTrabajoScraper : IJobScraper
     private readonly HttpClient _httpClient;
     private readonly ILogger<CompuTrabajoScraper> _logger;
     private readonly RateLimitSettings _rateLimit;
+    private readonly string _defaultLocation;
 
     private const string BaseSearchUrl = "https://www.computrabajo.com.co";
 
@@ -35,13 +36,17 @@ public partial class CompuTrabajoScraper : IJobScraper
         _httpClient = httpClientFactory.CreateClient("CompuTrabajo");
         _logger = logger;
         _rateLimit = settings.Value.RateLimiting;
+        _defaultLocation = SanitizeLocation(settings.Value.JobSources.TryGetValue("CompuTrabajo", out var source) ? source.Location : string.Empty);
     }
 
     public async Task<List<JobOffer>> SearchAsync(string keyword, string location, CancellationToken ct = default)
     {
         var sanitizedKeyword = SanitizeKeyword(keyword);
-        // AGREGAR ubicación a la URL: -en-medellin-antioquia
-        var url = $"{BaseSearchUrl}/trabajo-de-{sanitizedKeyword}-en-medellin-antioquia";
+        var sanitizedLocation = SanitizeLocation(location);
+        var locationSegment = !string.IsNullOrEmpty(sanitizedLocation) ? sanitizedLocation : _defaultLocation;
+        var url = !string.IsNullOrEmpty(locationSegment)
+            ? $"{BaseSearchUrl}/trabajo-de-{sanitizedKeyword}-en-{locationSegment}"
+            : $"{BaseSearchUrl}/trabajo-de-{sanitizedKeyword}";
 
         _logger.LogInformation("Buscando CompuTrabajo: keyword={Keyword}, url={Url} (URL completa: {FullUrl})", keyword, url, url);
 
@@ -210,6 +215,32 @@ public partial class CompuTrabajoScraper : IJobScraper
             .Trim();
 
         sanitized = KeywordRegex().Replace(sanitized, "-");
+        sanitized = MultipleDashRegex().Replace(sanitized, "-");
+        sanitized = sanitized.Trim('-');
+
+        return sanitized;
+    }
+
+    private static string SanitizeLocation(string location)
+    {
+        if (string.IsNullOrWhiteSpace(location))
+            return string.Empty;
+
+        var sanitized = location
+            .ToLowerInvariant()
+            .Trim()
+            .Normalize(System.Text.NormalizationForm.FormD);
+
+        // Remove accents (e.g. Medellín → medellin)
+        sanitized = new string(sanitized.Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark).ToArray());
+
+        // Replace non-alphanumeric characters (except spaces and dashes) with spaces
+        sanitized = Regex.Replace(sanitized, @"[^a-z0-9\s-]", " ");
+
+        // Replace spaces with hyphens
+        sanitized = sanitized.Replace(" ", "-");
+
+        // Collapse multiple hyphens
         sanitized = MultipleDashRegex().Replace(sanitized, "-");
         sanitized = sanitized.Trim('-');
 

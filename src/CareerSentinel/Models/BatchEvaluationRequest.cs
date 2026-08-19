@@ -30,4 +30,5 @@ public record CandidateInfo
     public string PreferredModality { get; init; } = string.Empty;
     public List<string> PreferredRegions { get; init; } = new();
     public List<string> Skills { get; init; } = new();
+    public string CvDescription { get; init; } = string.Empty;
 }

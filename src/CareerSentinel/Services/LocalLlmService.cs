@@ -18,10 +18,9 @@ public class LocalLlmService : ILlmService
     private readonly OllamaSettings _ollamaSettings;
     private readonly ScoringSettings _scoringSettings;
     private readonly AsyncRetryPolicy<HttpResponseMessage> _retryPolicy;
+    private readonly AsyncFileLogger _evaluationLogger;
 
-    private static readonly string LogDirectory = Path.Combine(AppContext.BaseDirectory, "logs");
-    private static readonly string EvaluationLogPath = Path.Combine(LogDirectory, "evaluaciones.log");
-
+    private static readonly Random _jitterRandom = new();
     private static readonly HashSet<int> ValidScores = new() { 0, 10, 25, 30, 85 };
 
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -38,19 +37,21 @@ public class LocalLlmService : ILlmService
     public LocalLlmService(
         IHttpClientFactory httpClientFactory,
         IOptions<AppSettings> settings,
-        ILogger<LocalLlmService> logger)
+        ILogger<LocalLlmService> logger,
+        AsyncFileLogger evaluationLogger)
     {
         _httpClient = httpClientFactory.CreateClient("Ollama");
         _logger = logger;
         _ollamaSettings = settings.Value.Ollama;
         _scoringSettings = settings.Value.Scoring;
+        _evaluationLogger = evaluationLogger;
 
         _retryPolicy = Policy<HttpResponseMessage>
             .Handle<HttpRequestException>()
             .OrResult(r => !r.IsSuccessStatusCode)
             .WaitAndRetryAsync(
                 _scoringSettings.MaxRetries,
-                retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+                retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt) * (1 + _jitterRandom.NextDouble() * 0.2)),
                 onRetry: (outcome, delay, retryCount, _) =>
                 {
                     _logger.LogWarning(
@@ -130,7 +131,7 @@ public class LocalLlmService : ILlmService
 
             var result = ParseEvaluationResult(ollamaResponse.Response);
 
-            LogEvaluationToFile(jobTitle, analysis.DescripcionOriginal, ollamaResponse.Response, result?.Score ?? 0);
+            await LogEvaluationToFile(jobTitle, analysis.DescripcionOriginal, ollamaResponse.Response, result?.Score ?? 0).ConfigureAwait(false);
 
             return result;
         }
@@ -149,13 +150,19 @@ public class LocalLlmService : ILlmService
         var habilidades = string.Join(", ", candidate.CoreSkills);
         var regiones = string.Join(", ", candidate.PreferredRegions);
 
+        var cvSection = string.IsNullOrWhiteSpace(candidate.CvDescription)
+            ? string.Empty
+            : $"""
+- CV Descripcion: {candidate.CvDescription}
+""";
+
         return $$"""
 Eres un clasificador de compatibilidad determinista. Aplica la PRIMERA regla R1..R5. Responde SOLO JSON, sin markdown.
 
 PERFIL CANDIDATO:
 - Nivel: {{candidate.Level}} | Anios: {{candidate.YearsExperience}} | Modalidad: {{candidate.PreferredModality}}
 - Regiones validas: {{regiones}}
-- Habilidades: {{habilidades}}
+- Habilidades: {{habilidades}}{{cvSection}}
 
 OFERTA:
 - Titulo: {{analysis.Titulo}}
@@ -268,12 +275,10 @@ JSON (claves exactas, score en {0,10,25,30,85}):
         };
     }
 
-    private void LogEvaluationToFile(string jobTitle, string description, string ollamaResponse, int score)
+    private async Task LogEvaluationToFile(string jobTitle, string description, string ollamaResponse, int score)
     {
         try
         {
-            Directory.CreateDirectory(LogDirectory);
-
             var entry = $"""
 ╔══════════════════════════════════════════════════════════════════════╗
 Fecha: {DateTime.Now:yyyy-MM-dd HH:mm:ss}
@@ -288,7 +293,7 @@ RESPUESTA DE OLLAMA:
 ╚══════════════════════════════════════════════════════════════════════╝
 
 """;
-            File.AppendAllText(EvaluationLogPath, entry);
+            await _evaluationLogger.AppendAsync(entry).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
@@ -322,7 +327,8 @@ RESPUESTA DE OLLAMA:
                 YearsExperience = int.TryParse(request.Candidate.YearsExperience, out var years) ? years : 0,
                 PreferredModality = request.Candidate.PreferredModality,
                 PreferredRegions = request.Candidate.PreferredRegions,
-                CoreSkills = request.Candidate.Skills
+                CoreSkills = request.Candidate.Skills,
+                CvDescription = request.Candidate.CvDescription
             };
 
             var result = await EvaluateJobAsync(offer.Title, analysis, candidate, ct);
@@ -446,123 +452,17 @@ JSON:
     {
         try
         {
-            var doc = JsonDocument.Parse(rawResponse);
-            var root = doc.RootElement;
-
-            var isValid = false;
-            if (root.TryGetProperty("es_texto_valido", out var etvProp))
-            {
-                isValid = etvProp.ValueKind switch
-                {
-                    JsonValueKind.True => true,
-                    JsonValueKind.False => false,
-                    JsonValueKind.String => etvProp.GetString()?.ToLowerInvariant() is "true" or "yes" or "1",
-                    JsonValueKind.Number => etvProp.GetInt32() == 1,
-                    _ => false
-                };
-            }
-            else if (root.TryGetProperty("valid", out var validProp))
-            {
-                isValid = validProp.ValueKind switch
-                {
-                    JsonValueKind.True => true,
-                    JsonValueKind.False => false,
-                    JsonValueKind.String => validProp.GetString()?.ToLowerInvariant() is "true" or "yes" or "1",
-                    JsonValueKind.Number => validProp.GetInt32() == 1,
-                    _ => false
-                };
-            }
-
-            var tecnologias = new List<string>();
-            if (root.TryGetProperty("techs", out var techsProp) && techsProp.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var tech in techsProp.EnumerateArray())
-                {
-                    if (tech.GetString() is string t && !string.IsNullOrWhiteSpace(t))
-                        tecnologias.Add(t);
-                }
-            }
-            else if (root.TryGetProperty("tecnologias_clave", out var tcProp) && tcProp.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var tech in tcProp.EnumerateArray())
-                {
-                    if (tech.GetString() is string t && !string.IsNullOrWhiteSpace(t))
-                        tecnologias.Add(t);
-                }
-            }
-
-            var titulo = root.TryGetProperty("title", out var tProp) ? tProp.GetString() ?? string.Empty
-                : root.TryGetProperty("titulo", out var tuProp) ? tuProp.GetString() ?? string.Empty : string.Empty;
-
-            var empresa = root.TryGetProperty("company", out var cProp) ? cProp.GetString() ?? string.Empty
-                : root.TryGetProperty("empresa", out var eProp) ? eProp.GetString() ?? string.Empty : string.Empty;
-
-            var modalidad = root.TryGetProperty("modality", out var mProp) ? mProp.GetString() ?? string.Empty
-                : root.TryGetProperty("modalidad", out var moProp) ? moProp.GetString() ?? string.Empty : string.Empty;
-
-            var ubicacion = root.TryGetProperty("location", out var lProp) ? lProp.GetString() ?? string.Empty
-                : root.TryGetProperty("ubicacion", out var uProp) ? uProp.GetString() ?? string.Empty : string.Empty;
-
-            var seniority = root.TryGetProperty("seniority", out var sProp) ? sProp.GetString() ?? string.Empty
-                : root.TryGetProperty("seniority_requerido", out var srProp) ? srProp.GetString() ?? string.Empty : string.Empty;
-
-            var anos = root.TryGetProperty("experience_years", out var eyProp) ? eyProp.GetString() ?? string.Empty
-                : root.TryGetProperty("anos_experiencia", out var aeProp) ? aeProp.GetString() ?? string.Empty : string.Empty;
-
-            var resumen = root.TryGetProperty("summary", out var sumProp) ? sumProp.GetString() ?? string.Empty
-                : root.TryGetProperty("resumen", out var rProp) ? rProp.GetString() ?? string.Empty : string.Empty;
-
-            return new JobAnalysis
-            {
-                EsTextoValido = isValid,
-                Titulo = titulo,
-                Empresa = empresa,
-                Modalidad = modalidad,
-                Ubicacion = ubicacion,
-                SeniorityRequerido = seniority,
-                AnosExperiencia = anos,
-                TecnologiasClave = tecnologias,
-                Resumen = resumen,
-                Responsabilidades = new List<string>(),
-                RequisitosDeseados = new List<string>()
-            };
+            var result = JsonJobParser.ParseJobAnalysis(rawResponse);
+            if (result is not null)
+                return result;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Error al parsear análisis del LLM en formato JSON puro");
+            _logger.LogWarning(ex, "Error al parsear análisis del LLM vía JsonJobParser");
         }
 
-        try
-        {
-            var validMatch = System.Text.RegularExpressions.Regex.Match(rawResponse, @"""valid""\s*:\s*(true|false)");
-            var isValid = validMatch.Success && validMatch.Groups[1].Value == "true";
-
-            if (!isValid)
-            {
-                var etvMatch = System.Text.RegularExpressions.Regex.Match(rawResponse, @"""es_texto_valido""\s*:\s*(true|false)");
-                isValid = etvMatch.Success && etvMatch.Groups[1].Value == "true";
-            }
-
-            return new JobAnalysis
-            {
-                EsTextoValido = isValid,
-                Titulo = string.Empty,
-                Empresa = string.Empty,
-                Modalidad = "No especifica",
-                Ubicacion = string.Empty,
-                SeniorityRequerido = "No especifica",
-                AnosExperiencia = "No especifica",
-                TecnologiasClave = new List<string>(),
-                Resumen = string.Empty,
-                Responsabilidades = new List<string>(),
-                RequisitosDeseados = new List<string>()
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error en fallback de parseo");
-        }
-
+        _logger.LogError("No se pudo parsear la respuesta del LLM para análisis: {Response}",
+            rawResponse[..Math.Min(200, rawResponse.Length)]);
         return null;
     }
 

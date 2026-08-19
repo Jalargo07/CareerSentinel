@@ -11,7 +11,7 @@
 
 ## Overview
 
-CareerSentinel is a .NET 8 worker service that automates the job search pipeline:
+CareerSentinel is a .NET 8 console application that automates the job search pipeline:
 
 1. **Scrape** job listings from multiple portals (LinkedIn, CompuTrabajo)
 2. **Extract** structured data from each listing using AI
@@ -24,31 +24,31 @@ Built as a personal project to solve a real problem: spending hours manually rev
 
 ## Architecture
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                        JobOrchestrator                           │
-│                                                                  │
-│  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐        │
-│  │   LinkedIn    │   │ CompuTrabajo │   │  (Future)    │        │
-│  │   Scraper     │   │   Scraper    │   │   Scrapers   │        │
-│  └──────┬───────┘   └──────┬───────┘   └──────┬───────┘        │
-│         │                  │                   │                 │
-│         └──────────────────┼───────────────────┘                 │
-│                            │                                     │
-│                   ┌────────▼────────┐                            │
-│                   │   IJobScraper   │  Strategy Pattern          │
-│                   └────────┬────────┘                            │
-│                            │                                     │
-│              ┌─────────────┼─────────────┐                       │
-│              │             │             │                        │
-│        ┌─────▼─────┐ ┌────▼────┐ ┌──────▼──────┐               │
-│        │  Paso 1   │ │ Paso 2  │ │   Notion    │               │
-│        │ Extract   │ │ Evaluate│ │   + Telegram │               │
-│        │ (Batch)   │ │ (Batch) │ │   Alerts    │               │
-│        └───────────┘ └─────────┘ └─────────────┘               │
-│                                                                  │
-└──────────────────────────────────────────────────────────────────┘
-```
+`
++------------------------------------------------------------------+
+�                        JobOrchestrator                             �
+�                                                                  �
+�  +--------------+   +--------------+   +--------------+        �
+�  �   LinkedIn    �   � CompuTrabajo �   �  (Future)    �        �
+�  �   Scraper     �   �   Scraper    �   �   Scrapers   �        �
+�  +--------------+   +--------------+   +--------------+        �
+�         �                  �                   �                 �
+�         +------------------+-------------------+                 �
+�                            �                                     �
+�                   +--------?--------+                            �
+�                   �   IJobScraper   �  Strategy Pattern          �
+�                   +-----------------+                            �
+�                            �                                     �
+�              +-------------+-------------+                       �
+�              �             �             �                        �
+�        +-----?-----+ +----?----+ +------?------+               �
+�        �  Paso 1   � � Paso 2  � �   Notion    �               �
+�        � Extract   � � Evaluate� �   + Telegram �               �
+�        � (Batch)   � � (Batch) � �   Alerts    �               �
+�        +-----------+ +---------+ +-------------+               �
+�                                                                  �
++------------------------------------------------------------------+
+`
 
 ### Pipeline
 
@@ -61,7 +61,7 @@ The system processes jobs in **batches of 5** to minimize API costs:
 | **Paso 2** | Evaluate compatibility against candidate profile | 1 per batch |
 | **Alert** | Send matches to Telegram + save to Notion | 0 |
 
-With 30 job listings, this means **6 API calls** instead of 60 — a 10x reduction in token usage.
+With 30 job listings, this means **6 API calls** instead of 60 � a 10x reduction in token usage.
 
 ---
 
@@ -69,39 +69,56 @@ With 30 job listings, this means **6 API calls** instead of 60 — a 10x reducti
 
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
-| **Runtime** | .NET 8 | Worker service with dependency injection |
-| **Language** | C# 12 | Records, pattern matching, source generators |
+| **Runtime** | .NET 8 | Console app with dependency injection |
+| **Language** | C# 12 | Records, pattern matching, async/await |
 | **Scraping** | AngleSharp + HttpClient | HTML parsing with anti-bot protection |
 | **AI** | Gemini 3.5 Flash Lite | Job extraction and evaluation (free tier) |
-| **Resilience** | Polly | Retry with exponential backoff + circuit breaker |
+| **Resilience** | Polly | Retry with exponential backoff + jitter + circuit breaker |
 | **Storage** | Notion API | Job offer persistence |
 | **Alerts** | Telegram Bot API | Real-time match notifications |
-| **Config** | Options Pattern + User Secrets | Type-safe configuration |
+| **Config** | Options Pattern + appsettings.json | Type-safe configuration |
 
 ---
 
 ## Features
 
-### Multi-Source Scraping
+### ?? Smart Setup Wizard
+- **First-time detection**: Automatically detects incomplete configuration
+- **Step-by-step guided setup**: Telegram ? Profile ? AI provider
+- **Pre-filled values**: Shows current settings, press Enter to keep or type new value
+- **Single save at the end**: Efficient persistence
+
+### ?? Intelligent Menu
+- **View vs Edit separation**: Clear distinction between read-only views and editable settings
+- **Organized profile menu**: 3 logical groups [A/B/C] for candidate data
+- **Contextual post-search menu**: Options after each search (view matches, search again, edit profile)
+
+### ?? Multi-Source Scraping
 - LinkedIn guest API (no authentication required)
 - CompuTrabajo with HTML parsing and anti-bot headers
-- Modular `IJobScraper` interface — add new portals in minutes
+- Modular IJobScraper interface � add new portals in minutes
 - Geographic filtering and seniority pre-filters
 
-### AI-Powered Evaluation
-- **2-step Chain-of-Thought pipeline**: extraction → evaluation
+### ?? AI-Powered Evaluation
+- **2-step Chain-of-Thought pipeline**: extraction ? evaluation
 - **Batch processing**: 5 jobs per API call for cost efficiency
 - **Structured output**: JSON mode with typed models
 - **Discrete scoring**: {0, 10, 25, 30, 85} with reconciliation logic
 
-### Smart Filtering
+### ??? Resilience Patterns
+- **Polly retry with jitter**: +20% randomization prevents thundering herd
+- **Circuit breaker**: 5 failures ? 30s open state
+- **Async file logging**: Non-blocking I/O with buffered writes
+- **Graceful degradation**: Batch fallback mechanisms
+
+### ?? Smart Filtering
 - Duplicate detection via local cache + Notion dedup
 - Description validation (skips login walls, short content)
 - Geographic matching (remote-friendly, Colombia, Latin America)
 - Seniority alignment (Junior profile vs Senior requirements)
 
-### Real-Time Alerts
-- Telegram notifications for high-scoring matches (≥85)
+### ?? Real-Time Alerts
+- Telegram notifications for high-scoring matches (=85)
 - Daily summary with top matches
 - Notion integration for persistent tracking
 
@@ -116,43 +133,63 @@ With 30 job listings, this means **6 API calls** instead of 60 — a 10x reducti
 
 ### Installation
 
-```bash
+`ash
 git clone https://github.com/Jalargo07/CareerSentinel.git
 cd CareerSentinel/src/CareerSentinel
 dotnet restore
-```
+`
+
+### First Run
+
+On first run, the wizard automatically detects incomplete configuration and guides you through setup:
+
+`
+------------------------------------------------------------
+  �Bienvenido a CareerSentinel!
+  Vamos a configurarte en 3 pasos...
+------------------------------------------------------------
+`
 
 ### Configuration
 
 Set up your API key and secrets:
 
-```bash
+`ash
 dotnet user-secrets set "AppSettings:OpenCodeGo:ApiKey" "YOUR_GEMINI_API_KEY"
 dotnet user-secrets set "Telegram:BotToken" "YOUR_BOT_TOKEN"
 dotnet user-secrets set "Telegram:ChatId" "YOUR_CHAT_ID"
-```
+`
 
 ### Run
 
-```bash
+`ash
 dotnet run
-```
+`
 
-```
-══════════════════════════════════════════
-  CareerSentinel - Job Search Automation
-══════════════════════════════════════════
-  [1] Run full search (all sources)
-  [2] View current configuration
-  [3] View enabled sources
-  [4] Enable/disable sources
-  [5] Run LinkedIn only
-  [6] Run CompuTrabajo only
-  [7] Configure candidate profile
-  [8] Configure LLM (model, API key)
-  [9] Exit
-══════════════════════════════════════════
-```
+`
+------------------------------------------------------------
+  CareerSentinel - Buscador de Empleo con IA
+------------------------------------------------------------
+
+  +- PRIMERA VEZ -----------------------------------------+
+  �  [1] Configurar Telegram                             �
+  �  [2] Configurar mi perfil                            �
+  �  [3] Configurar IA (inteligencia artificial)         �
+  +-------------------------------------------------------+
+
+  +- BUSCAR EMPLEO ---------------------------------------+
+  �  [4] Buscar en TODOS los portales                    �
+  �  [5] Buscar solo en LinkedIn                         �
+  �  [6] Buscar solo en CompuTrabajo                     �
+  +-------------------------------------------------------+
+
+  +- UTILIDADES ------------------------------------------+
+  �  [7] Ver configuraci�n completa (solo lectura)        �
+  �  [8] Editar mi perfil de candidato                    �
+  �  [9] Editar IA / proveedor                            �
+  �  [0] Gestionar fuentes de empleo                      �
+  +-------------------------------------------------------+
+`
 
 ---
 
@@ -168,49 +205,65 @@ Individual API calls for 30+ jobs would exhaust the free tier in minutes. Batchi
 |--------|----------|
 | **Cost** | Free tier: 1,500 requests/day |
 | **Speed** | ~200ms per batch |
-| **JSON mode** | Native `response_format` support |
+| **JSON mode** | Native esponse_format support |
 | **Accuracy** | Sufficient for structured extraction |
 
-### Why .NET 8 Worker Service?
+### Why .NET 8?
 
 - Built-in dependency injection
-- `IHttpClientFactory` for resilient HTTP
+- IHttpClientFactory for resilient HTTP
 - Polly integration for retry/circuit-breaker
 - Options pattern for type-safe config
-- Source generators for zero-allocation regex
+- Records and pattern matching for clean code
 
 ---
 
 ## Project Structure
 
-```
+`
 src/CareerSentinel/
-├── Program.cs                    # DI container + entry point
-├── appsettings.json              # Configuration
-├── Configuration/
-│   └── AppSettings.cs            # Strongly-typed settings
-├── Models/
-│   ├── JobOffer.cs               # Job listing DTO
-│   ├── JobAnalysis.cs            # Paso 1 output (extraction)
-│   ├── EvaluationResult.cs       # Paso 2 output (scoring)
-│   └── BatchEvaluationRequest.cs # Batch request models
-├── Services/
-│   ├── IJobScraper.cs            # Scraper interface (Strategy)
-│   ├── LinkedInScraper.cs        # LinkedIn guest API
-│   ├── CompuTrabajoScraper.cs    # CompuTrabajo HTML parser
-│   ├── ILlmService.cs            # LLM interface
-│   ├── OpenCodeGoService.cs      # Gemini API client
-│   ├── LocalLlmService.cs        # Ollama local fallback
-│   ├── HybridLlmService.cs       # Ollama + API hybrid
-│   ├── JobOrchestrator.cs        # Pipeline orchestrator
-│   ├── NotionService.cs          # Notion integration
-│   ├── TelegramAlertService.cs   # Telegram notifications
-│   ├── IJobCacheService.cs       # Cache interface
-│   ├── JobCacheService.cs        # JSON file cache
-│   └── ConsoleMenu.cs            # Interactive menu
-└── Workers/
-    └── JobScrapingWorker.cs      # Background service (future)
-```
++-- Program.cs                    # DI container + entry point + menu
++-- appsettings.json              # Configuration
++-- Configuration/
+�   +-- AppSettings.cs            # Strongly-typed settings
++-- Models/
+�   +-- JobOffer.cs               # Job listing DTO
+�   +-- JobAnalysis.cs            # Paso 1 output (extraction)
+�   +-- EvaluationResult.cs       # Paso 2 output (scoring)
+�   +-- BatchEvaluationRequest.cs # Batch request models
+�   +-- SearchResult.cs           # Post-search statistics
++-- Services/
+�   +-- IJobScraper.cs            # Scraper interface (Strategy)
+�   +-- LinkedInScraper.cs        # LinkedIn guest API
+�   +-- CompuTrabajoScraper.cs     # CompuTrabajo HTML parser
+�   +-- ILlmService.cs            # LLM interface
+�   +-- OpenCodeGoService.cs      # Gemini API client
+�   +-- LocalLlmService.cs        # Ollama local fallback
+�   +-- HybridLlmService.cs        # Ollama + API hybrid
+�   +-- JsonJobParser.cs          # Shared JSON parsing helper
+�   +-- ConfigurationService.cs   # Config persistence service
+�   +-- AsyncFileLogger.cs        # Async buffered file logging
+�   +-- JobOrchestrator.cs        # Pipeline orchestrator
+�   +-- NotionService.cs          # Notion integration
+�   +-- TelegramAlertService.cs   # Telegram notifications
+�   +-- IJobCacheService.cs       # Cache interface
+�   +-- JobCacheService.cs        # JSON file cache
+�   +-- ConsoleMenu.cs            # Interactive menu + wizard
++-- Configuration/
+    +-- AppSettings.cs
+`
+
+---
+
+## Code Quality
+
+- **Zero compiler warnings** in Release configuration
+- **Design Patterns**: Strategy, Options, Repository
+- **Async/await** throughout with proper CancellationToken propagation
+- **Polly resilience**: Retry with jitter, circuit breaker
+- **IHttpClientFactory**: Named clients for each service
+- **Records**: Immutable DTOs with System.Text.Json
+- **No hardcoded secrets**: All via configuration or User Secrets
 
 ---
 

@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 
 namespace CareerSentinel.Services;
 
-public partial class LinkedInScraper : IJobScraper, ILinkedInScraper
+public partial class LinkedInScraper : IJobScraper
 {
     public string PortalName => "LinkedIn";
 
@@ -52,7 +52,7 @@ public partial class LinkedInScraper : IJobScraper, ILinkedInScraper
         var keywordQuery = Uri.EscapeDataString($"\"{keyword}\"");
         var locationQuery = Uri.EscapeDataString(string.Join(" OR ", _candidateProfile.PreferredRegions));
         
-        var url = $"https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?" +
+        var url = $"{_settings.BaseUrl}?" +
                   $"keywords={keywordQuery}" +
                   $"&location={locationQuery}" +
                   $"&{experienceFilter}" +
@@ -181,8 +181,8 @@ public partial class LinkedInScraper : IJobScraper, ILinkedInScraper
             var locText = locationEl?.TextContent.Trim() ?? string.Empty;
             var description = card.QuerySelector(".job-search-card__snippet")?.TextContent.Trim() ?? string.Empty;
 
-            // Log: cada oferta encontrada
-            _logger.LogInformation("Oferta encontrada: {Title} | {Location} | ID={Id}", title, locText, id);
+            // Log: cada oferta encontrada (Debug para evitar ruido en loops)
+            _logger.LogDebug("Oferta encontrada: {Title} | {Location} | ID={Id}", title, locText, id);
 
             // Pre-filtro: descartar ofertas Senior si el candidato es Junior/Mid
             if (!ShouldEvaluateJob(title, description))
@@ -200,8 +200,8 @@ public partial class LinkedInScraper : IJobScraper, ILinkedInScraper
                 continue;
             }
 
-            // Si pasó ambos filtros
-            _logger.LogInformation("FILTRO OK: {Title} en {Location} | Aceptada", title, locText);
+            // Si pasó ambos filtros (Debug para evitar ruido en loops)
+            _logger.LogDebug("FILTRO OK: {Title} en {Location} | Aceptada", title, locText);
 
             jobs.Add(new JobOffer
             {

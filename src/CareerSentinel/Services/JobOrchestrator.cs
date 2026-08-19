@@ -33,12 +33,14 @@ public class JobOrchestrator
         _logger = logger;
     }
 
-    public async Task RunAsync(List<string>? scraperFilter = null, CancellationToken ct = default)
+    public async Task<SearchResult> RunAsync(List<string>? scraperFilter = null, CancellationToken ct = default)
     {
         _logger.LogInformation("Inicio del ciclo de orquestación de empleos");
 
         var allMatches = new List<(JobOffer Job, EvaluationResult Result)>();
         var threshold = _settings.Scoring.Threshold;
+        int totalProcessed = 0;
+        int savedCount = 0;
 
         // Count enabled scrapers
         var activeScrapers = new List<(IJobScraper Scraper, JobSourceSettings Config)>();
@@ -65,7 +67,7 @@ public class JobOrchestrator
         if (activeScrapers.Count == 0)
         {
             _logger.LogWarning("No hay scrapers habilitados, terminando ciclo");
-            return;
+            return new SearchResult { TotalProcessed = 0, Matched = 0, Saved = 0 };
         }
 
         try
@@ -177,6 +179,8 @@ public class JobOrchestrator
                         "[{PortalName}] Scraping completado: {Count} ofertas con descripción válida",
                         scraper.PortalName, pendingBatch.Count);
 
+                    totalProcessed += pendingBatch.Count;
+
                     if (pendingBatch.Count == 0)
                     {
                         // Rate limit between keyword searches
@@ -277,7 +281,8 @@ public class JobOrchestrator
                                 YearsExperience = _settings.Candidate.YearsExperience.ToString(),
                                 PreferredModality = _settings.Candidate.PreferredModality,
                                 PreferredRegions = _settings.Candidate.PreferredRegions.ToList(),
-                                Skills = _settings.Candidate.CoreSkills.ToList()
+                                Skills = _settings.Candidate.CoreSkills.ToList(),
+                                CvDescription = _settings.Candidate.CvDescription
                             }
                         };
 
@@ -323,6 +328,7 @@ public class JobOrchestrator
 
                                 // Save to Notion
                                 await _notionService.SaveJobAsync(offerWithDescription, evaluation, ct);
+                                savedCount++;
 
                                 // Send Telegram alert
                                 await _telegramAlertService.SendAlertAsync(offerWithDescription, evaluation, ct);
@@ -359,5 +365,12 @@ public class JobOrchestrator
             _logger.LogError(ex, "Error fatal en el ciclo de orquestación de empleos");
             throw;
         }
+
+        return new SearchResult
+        {
+            TotalProcessed = totalProcessed,
+            Matched = allMatches.Count,
+            Saved = savedCount
+        };
     }
 }
