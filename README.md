@@ -41,7 +41,7 @@ Built as a personal project to solve a real problem: spending hours manually rev
 |                            |                                       |
 |              +-------------+-------------+                         |
 |              |             |             |                        |
-|        +-----v-----+ +----v----+ +-----v------+                |
+|        +-----v-----+ +-----v----+ +-----v------+                |
 |        |  Paso 1   | | Paso 2  | |   Notion    |                |
 |        | Extract   | | Evaluate| | + Telegram   |                |
 |        | (Batch)   | | (Batch) | |   Alerts    |                |
@@ -190,33 +190,33 @@ Individual API calls for 30+ jobs would exhaust the free tier in minutes. Batchi
 
 `
 src/CareerSentinel/
-+-- Program.cs                    # DI container + entry point + menu
-+-- appsettings.json              # Configuration
-+-- Configuration/
-¦   +-- AppSettings.cs            # Strongly-typed settings
-+-- Models/
-¦   +-- JobOffer.cs               # Job listing DTO
-¦   +-- JobAnalysis.cs            # Paso 1 output (extraction)
-¦   +-- EvaluationResult.cs       # Paso 2 output (scoring)
-¦   +-- BatchEvaluationRequest.cs # Batch request models
-¦   +-- SearchResult.cs           # Post-search statistics
-+-- Services/
-    +-- IJobScraper.cs            # Scraper interface (Strategy)
-    +-- LinkedInScraper.cs        # LinkedIn guest API
-    +-- CompuTrabajoScraper.cs    # CompuTrabajo HTML parser
-    +-- ILlmService.cs            # LLM interface
-    +-- OpenCodeGoService.cs      # Gemini API client
-    +-- LocalLlmService.cs        # Ollama local fallback
-    +-- HybridLlmService.cs       # Ollama + API hybrid
-    +-- JsonJobParser.cs          # Shared JSON parsing helper
-    +-- ConfigurationService.cs    # Config persistence service
-    +-- AsyncFileLogger.cs        # Async buffered file logging
-    +-- JobOrchestrator.cs        # Pipeline orchestrator
-    +-- NotionService.cs          # Notion integration
-    +-- TelegramAlertService.cs   # Telegram notifications
-    +-- IJobCacheService.cs       # Cache interface
-    +-- JobCacheService.cs        # JSON file cache
-    +-- ConsoleMenu.cs             # Interactive menu + wizard
+|-- Program.cs                    # DI container + entry point + menu
+|-- appsettings.json              # Configuration
+|-- Configuration/
+|   |-- AppSettings.cs            # Strongly-typed settings
+|-- Models/
+|   |-- JobOffer.cs               # Job listing DTO
+|   |-- JobAnalysis.cs            # Paso 1 output (extraction)
+|   |-- EvaluationResult.cs       # Paso 2 output (scoring)
+|   |-- BatchEvaluationRequest.cs # Batch request models
+|   |-- SearchResult.cs           # Post-search statistics
+|-- Services/
+    |-- IJobScraper.cs            # Scraper interface (Strategy)
+    |-- LinkedInScraper.cs        # LinkedIn guest API
+    |-- CompuTrabajoScraper.cs    # CompuTrabajo HTML parser
+    |-- ILlmService.cs            # LLM interface
+    |-- OpenCodeGoService.cs      # Gemini API client
+    |-- LocalLlmService.cs        # Ollama local fallback
+    |-- HybridLlmService.cs       # Ollama + API hybrid
+    |-- JsonJobParser.cs          # Shared JSON parsing helper
+    |-- ConfigurationService.cs   # Config persistence service
+    |-- AsyncFileLogger.cs        # Async buffered file logging
+    |-- JobOrchestrator.cs        # Pipeline orchestrator
+    |-- NotionService.cs          # Notion integration
+    |-- TelegramAlertService.cs   # Telegram notifications
+    |-- IJobCacheService.cs       # Cache interface
+    |-- JobCacheService.cs        # JSON file cache
+    |-- ConsoleMenu.cs            # Interactive menu + wizard
 `
 
 ---
