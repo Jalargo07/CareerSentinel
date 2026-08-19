@@ -2,57 +2,59 @@
 
 [![.NET 8](https://img.shields.io/badge/.NET-8.0-purple?logo=dotnet)](https://dotnet.microsoft.com/)
 [![C# 12](https://img.shields.io/badge/C%23-12.0-blue?logo=csharp)](https://docs.microsoft.com/es-es/dotnet/csharp/)
-[![Gemini](https://img.shields.io/badge/Gemini-3.5%20Flash-4285F4?logo=google)](https://ai.google.dev/)
+[![Gemini](https://img.shields.io/badge/Gemini-2.5%20Flash-4285F4?logo=google)](https://ai.google.dev/)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 
-> Automated job scraping and AI-powered evaluation system that scans LinkedIn and CompuTrabajo, scores opportunities against your profile, and sends real-time alerts via Telegram.
+> Automated job scraping and AI-powered evaluation system that scans LinkedIn and CompuTrabajo, scores opportunities against your profile using batch AI inference, and sends real-time alerts via Telegram.
 
 ---
 
 ## Overview
 
-CareerSentinel is a .NET 8 console application that automates the job search pipeline:
+CareerSentinel is a .NET 8 console application designed to automate the job search pipeline:
 
-1. **Scrape** job listings from multiple portals (LinkedIn, CompuTrabajo)
-2. **Extract** structured data from each listing using AI
-3. **Evaluate** compatibility against your candidate profile
-4. **Alert** via Telegram when strong matches are found
-
-Built as a personal project to solve a real problem: spending hours manually reviewing job postings that don't match my skills or preferences.
+1. **Scrape** job listings from multiple portals (LinkedIn, CompuTrabajo).
+2. **Extract** structured technical requirements from raw job descriptions using AI.
+3. **Evaluate** candidate compatibility against strict business rules (R1-R5).
+4. **Alert** via Telegram when strong matches are found and persist records to Notion.
 
 ---
 
 ## Architecture
 
-`
+`	ext
 +------------------------------------------------------------------+
-|                        JobOrchestrator                             |
+|                         JobOrchestrator                          |
 |                                                                  |
-|  +--------------+   +--------------+   +--------------+           |
-|  |   LinkedIn    |   | CompuTrabajo |   |  (Future)    |           |
-|  |   Scraper     |   |   Scraper    |   |   Scrapers   |           |
-|  +--------------+   +--------------+   +--------------+           |
-|         |                  |                   |                   |
-|         +------------------+-------------------+                   |
-|                            |                                       |
+|  +--------------+   +--------------+   +--------------+          |
+|  |   LinkedIn   |   | CompuTrabajo |   |   (Future)   |          |
+|  |   Scraper    |   |   Scraper    |   |   Scraper    |          |
+|  +--------------+   +--------------+   +--------------+          |
+|         |                  |                   |                 |
+|         +------------------+-------------------+                 |
+|                            |                                     |
 |                   +--------v--------+                            |
-|                   |   IJobScraper   |  Strategy Pattern          |
+|                   |  IJobScraper    |   Strategy Pattern         |
 |                   +--------^--------+                            |
-|                            |                                       |
-|              +-------------+-------------+                         |
-|              |             |             |                        |
-|        +-----v-----+ +-----v----+ +-----v------+                |
-|        |  Paso 1   | | Paso 2  | |   Notion    |                |
-|        | Extract   | | Evaluate| | + Telegram   |                |
-|        | (Batch)   | | (Batch) | |   Alerts    |                |
-|        +-----------+ +---------+ +-------------+                 |
-|                                                                  |
+|                            |                                     |
+|              +-------------+-------------+                       |
+|              |                           |                       |
+|        +-----v-----+               +-----v-----+                 |
+|        |  Paso 1   |               |  Paso 2   |                 |
+|        | Extract   |               | Evaluate  |                 |
+|        | (Batch 5) |               | (Batch 5) |                 |
+|        +-----+-----+               +-----+-----+                 |
+|              |                           |                       |
+|              +-------------+-------------+                       |
+|                            |                                     |
+|                   +--------v--------+                            |
+|                   | Notion + Alert  |                            |
+|                   |  (Telegram)     |                            |
+|                   +-----------------+                            |
 +------------------------------------------------------------------+
 `
 
 ### Pipeline
-
-The system processes jobs in **batches of 5** to minimize API costs:
 
 | Step | Description | API Calls |
 |------|-------------|-----------|
@@ -133,11 +135,11 @@ With 30 job listings, this means **6 API calls** instead of 60 - a 10x reduction
 
 ### Installation
 
-`ash
+\\\ash
 git clone https://github.com/Jalargo07/CareerSentinel.git
 cd CareerSentinel/src/CareerSentinel
 dotnet restore
-`
+\\\
 
 ### First Run
 
@@ -147,17 +149,17 @@ On first run, the wizard automatically detects incomplete configuration and guid
 
 Set up your API key and secrets:
 
-`ash
-dotnet user-secrets set "AppSettings:OpenCodeGo:ApiKey" "YOUR_GEMINI_API_KEY"
-dotnet user-secrets set "Telegram:BotToken" "YOUR_BOT_TOKEN"
-dotnet user-secrets set "Telegram:ChatId" "YOUR_CHAT_ID"
-`
+\\\ash
+dotnet user-secrets set ""AppSettings:OpenCodeGo:ApiKey"" ""YOUR_GEMINI_API_KEY""
+dotnet user-secrets set ""Telegram:BotToken"" ""YOUR_BOT_TOKEN""
+dotnet user-secrets set ""Telegram:ChatId"" ""YOUR_CHAT_ID""
+\\\
 
 ### Run
 
-`ash
+\\\ash
 dotnet run
-`
+\\\
 
 ---
 
@@ -188,7 +190,7 @@ Individual API calls for 30+ jobs would exhaust the free tier in minutes. Batchi
 
 ## Project Structure
 
-`
+\\\	ext
 src/CareerSentinel/
 |-- Program.cs                    # DI container + entry point + menu
 |-- appsettings.json              # Configuration
@@ -201,23 +203,23 @@ src/CareerSentinel/
 |   |-- BatchEvaluationRequest.cs # Batch request models
 |   |-- SearchResult.cs           # Post-search statistics
 |-- Services/
-    |-- IJobScraper.cs            # Scraper interface (Strategy)
-    |-- LinkedInScraper.cs        # LinkedIn guest API
-    |-- CompuTrabajoScraper.cs    # CompuTrabajo HTML parser
-    |-- ILlmService.cs            # LLM interface
-    |-- OpenCodeGoService.cs      # Gemini API client
-    |-- LocalLlmService.cs        # Ollama local fallback
-    |-- HybridLlmService.cs       # Ollama + API hybrid
-    |-- JsonJobParser.cs          # Shared JSON parsing helper
-    |-- ConfigurationService.cs   # Config persistence service
-    |-- AsyncFileLogger.cs        # Async buffered file logging
-    |-- JobOrchestrator.cs        # Pipeline orchestrator
-    |-- NotionService.cs          # Notion integration
-    |-- TelegramAlertService.cs   # Telegram notifications
-    |-- IJobCacheService.cs       # Cache interface
-    |-- JobCacheService.cs        # JSON file cache
-    |-- ConsoleMenu.cs            # Interactive menu + wizard
-`
+|   |-- IJobScraper.cs            # Scraper interface (Strategy)
+|   |-- LinkedInScraper.cs        # LinkedIn guest API
+|   |-- CompuTrabajoScraper.cs    # CompuTrabajo HTML parser
+|   |-- ILlmService.cs            # LLM interface
+|   |-- OpenCodeGoService.cs      # Gemini API client
+|   |-- LocalLlmService.cs        # Ollama local fallback
+|   |-- HybridLlmService.cs       # Ollama + API hybrid
+|   |-- JsonJobParser.cs          # Shared JSON parsing helper
+|   |-- ConfigurationService.cs   # Config persistence service
+|   |-- AsyncFileLogger.cs        # Async buffered file logging
+|   |-- JobOrchestrator.cs        # Pipeline orchestrator
+|   |-- NotionService.cs          # Notion integration
+|   |-- TelegramAlertService.cs   # Telegram notifications
+|   |-- IJobCacheService.cs       # Cache interface
+|   |-- JobCacheService.cs        # JSON file cache
+|   |-- ConsoleMenu.cs            # Interactive menu + wizard
+\\\
 
 ---
 
