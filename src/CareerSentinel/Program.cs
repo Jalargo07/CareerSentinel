@@ -146,20 +146,20 @@ services.AddSingleton<LocalLlmService>();
 services.AddSingleton<OpenCodeGoService>();
 services.AddSingleton<HybridLlmService>();
 
-// Register ILlmService according to processing mode
-switch (processingMode.ToUpperInvariant())
+// Register ILlmService factory for runtime resolution
+// This allows the ProcessingMode to be changed at runtime via ConsoleMenu
+// without requiring an application restart.
+services.AddSingleton<ILlmService>(sp =>
 {
-    case "API":
-        services.AddSingleton<ILlmService>(sp => sp.GetRequiredService<OpenCodeGoService>());
-        break;
-    case "HYBRID":
-        // Hybrid uses Ollama for Paso1 and API for Paso2
-        services.AddSingleton<ILlmService>(sp => sp.GetRequiredService<HybridLlmService>());
-        break;
-    default: // "LOCAL"
-        services.AddSingleton<ILlmService>(sp => sp.GetRequiredService<LocalLlmService>());
-        break;
-}
+    var settings = sp.GetRequiredService<IOptions<AppSettings>>().Value;
+    return settings.ProcessingMode switch
+    {
+        ProcessingMode.Local => sp.GetRequiredService<LocalLlmService>(),
+        ProcessingMode.API => sp.GetRequiredService<OpenCodeGoService>(),
+        ProcessingMode.Hybrid => sp.GetRequiredService<HybridLlmService>(),
+        _ => sp.GetRequiredService<OpenCodeGoService>()
+    };
+});
 
 services.AddSingleton<NotionService>();
 services.AddSingleton<TelegramAlertService>();
