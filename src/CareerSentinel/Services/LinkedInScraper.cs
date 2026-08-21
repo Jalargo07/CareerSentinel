@@ -20,8 +20,6 @@ public partial class LinkedInScraper : IJobScraper
     private readonly HtmlParser _htmlParser;
     private readonly ILinkedInAuthService _authService;
 
-    private const int MaxAuthWallRetries = 2;
-
     private static readonly string[] UserAgents =
     [
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
@@ -46,12 +44,26 @@ public partial class LinkedInScraper : IJobScraper
 
     public async Task<List<JobOffer>> SearchAsync(string keyword, string location, CancellationToken ct = default)
     {
-        // Asegurar autenticación antes de hacer requests
-        await _authService.EnsureAuthenticatedAsync(ct);
-
-        // Obtener cookies de autenticación
-        var cookies = await _authService.GetCookiesAsync(ct);
-        var cookieHeader = string.Join("; ", cookies.Select(c => $"{c.Name}={c.Value}"));
+        // Auth OPCIONAL: intentar obtener cookies existentes SIN abrir navegador
+        IReadOnlyList<CookieData> cookies = [];
+        var cookieHeader = string.Empty;
+        try
+        {
+            if (await _authService.IsAuthenticatedAsync(ct))
+            {
+                cookies = await _authService.GetCookiesAsync(ct);
+                cookieHeader = string.Join("; ", cookies.Select(c => $"{c.Name}={c.Value}"));
+                _logger.LogInformation("Usando cookies de LinkedIn ({Count})", cookies.Count);
+            }
+            else
+            {
+                _logger.LogInformation("Sin cookies de LinkedIn, usando Guest API");
+            }
+        }
+        catch
+        {
+            _logger.LogInformation("Fallback a Guest API (no se pudieron obtener cookies)");
+        }
 
         // Determinar niveles de experiencia segun el perfil del candidato
         var experienceFilter = _candidateProfile.YearsExperience switch
@@ -77,60 +89,27 @@ public partial class LinkedInScraper : IJobScraper
 
         try
         {
-            var authwallRetries = 0;
-            bool authwallDetected;
+            using var request = BuildHttpRequest(url, cookieHeader);
+            using var response = await _httpClient.SendAsync(request, ct);
 
-            do
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
             {
-                authwallDetected = false;
+                _logger.LogWarning("Rate limit (429) alcanzado en LinkedIn para {Keyword}.", keyword);
+                return [];
+            }
 
-                using var request = BuildHttpRequest(url, cookieHeader);
-                using var response = await _httpClient.SendAsync(request, ct);
+            response.EnsureSuccessStatusCode();
 
-                if (response.StatusCode == HttpStatusCode.TooManyRequests)
-                {
-                    _logger.LogWarning("Rate limit (429) alcanzado en LinkedIn para {Keyword}.", keyword);
-                    return [];
-                }
+            var html = await response.Content.ReadAsStringAsync(ct);
 
-                response.EnsureSuccessStatusCode();
+            if (ContainsAuthWall(html))
+            {
+                _logger.LogWarning(
+                    "LinkedIn devolvio Authwall/Captcha para {Keyword} (usa [S] para autenticar si persiste)", keyword);
+                return [];
+            }
 
-                var html = await response.Content.ReadAsStringAsync(ct);
-
-                if (ContainsAuthWall(html))
-                {
-                    authwallRetries++;
-                    authwallDetected = true;
-
-                    _logger.LogWarning(
-                        "LinkedIn authwall detectado para '{Keyword}' (intento {Retry}/{Max}). Re-autenticando...",
-                        keyword, authwallRetries, MaxAuthWallRetries);
-
-                    if (authwallRetries >= MaxAuthWallRetries)
-                    {
-                        _logger.LogWarning(
-                            "LinkedIn authwall persistente después de {Max} reintentos para '{Keyword}'. " +
-                            "Fallback: se omitirá LinkedIn (use CompuTrabajo como alternativa).",
-                            MaxAuthWallRetries, keyword);
-                        return [];
-                    }
-
-                    // Re-autenticar y regenerar cookies
-                    await _authService.EnsureAuthenticatedAsync(ct);
-                    var freshCookies = await _authService.GetCookiesAsync(ct);
-                    cookieHeader = string.Join("; ", freshCookies.Select(c => $"{c.Name}={c.Value}"));
-
-                    // Delay adicional antes de reintentar
-                    await RandomDelayAsync(ct);
-                }
-                else
-                {
-                    return await ParseJobListingsAsync(html, keyword, ct);
-                }
-            } while (authwallDetected);
-
-            // Nunca debería llegar aquí, pero por seguridad
-            return [];
+            return await ParseJobListingsAsync(html, keyword, ct);
         }
         catch (Exception ex)
         {
@@ -143,90 +122,75 @@ public partial class LinkedInScraper : IJobScraper
     {
         _logger.LogInformation("Obteniendo descripcion detallada: {Url}", jobUrl);
 
-        // Obtener cookies de autenticación
-        var cookies = await _authService.GetCookiesAsync(ct);
-        var cookieHeader = string.Join("; ", cookies.Select(c => $"{c.Name}={c.Value}"));
+        // Auth OPCIONAL: intentar obtener cookies existentes SIN abrir navegador
+        IReadOnlyList<CookieData> cookies = [];
+        var cookieHeader = string.Empty;
+        try
+        {
+            if (await _authService.IsAuthenticatedAsync(ct))
+            {
+                cookies = await _authService.GetCookiesAsync(ct);
+                cookieHeader = string.Join("; ", cookies.Select(c => $"{c.Name}={c.Value}"));
+                _logger.LogInformation("Usando cookies de LinkedIn ({Count}) para descripcion", cookies.Count);
+            }
+            else
+            {
+                _logger.LogInformation("Sin cookies de LinkedIn, obteniendo descripcion con Guest API");
+            }
+        }
+        catch
+        {
+            _logger.LogInformation("Fallback a Guest API para descripcion (no se pudieron obtener cookies)");
+        }
 
         await RandomDelayAsync(ct);
 
         try
         {
-            var authwallRetries = 0;
-            bool authwallDetected;
+            using var request = BuildHttpRequest(jobUrl, cookieHeader);
+            using var response = await _httpClient.SendAsync(request, ct);
 
-            do
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
             {
-                authwallDetected = false;
+                _logger.LogWarning("HTTP 429 (Too Many Requests) al obtener descripcion de {Url}", jobUrl);
+                return string.Empty;
+            }
 
-                using var request = BuildHttpRequest(jobUrl, cookieHeader);
-                using var response = await _httpClient.SendAsync(request, ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("HTTP {StatusCode} al obtener descripcion de {Url}", response.StatusCode, jobUrl);
+                return string.Empty;
+            }
 
-                if (response.StatusCode == HttpStatusCode.TooManyRequests)
-                {
-                    _logger.LogWarning("HTTP 429 (Too Many Requests) al obtener descripcion de {Url}", jobUrl);
-                    return string.Empty;
-                }
+            var html = await response.Content.ReadAsStringAsync(ct);
+            _logger.LogInformation("HTML de descripcion: {Length} caracteres", html.Length);
 
-                if (!response.IsSuccessStatusCode)
-                {
-                    _logger.LogWarning("HTTP {StatusCode} al obtener descripcion de {Url}", response.StatusCode, jobUrl);
-                    return string.Empty;
-                }
+            if (ContainsAuthWall(html))
+            {
+                _logger.LogWarning(
+                    "LinkedIn devolvio Authwall/Captcha para descripcion de {Url} (usa [S] para autenticar si persiste)", jobUrl);
+                return string.Empty;
+            }
 
-                var html = await response.Content.ReadAsStringAsync(ct);
-                _logger.LogInformation("HTML de descripcion: {Length} caracteres", html.Length);
+            using var document = await _htmlParser.ParseDocumentAsync(html, ct);
 
-                if (ContainsAuthWall(html))
-                {
-                    authwallRetries++;
-                    authwallDetected = true;
+            var descriptionElement = document.QuerySelector(".show-more-less-html__markup, .description__text, .job-description, .markup");
+            var description = descriptionElement?.TextContent.Trim() ?? string.Empty;
 
-                    _logger.LogWarning(
-                        "LinkedIn authwall detectado al obtener descripción de {Url} (intento {Retry}/{Max}). Re-autenticando...",
-                        jobUrl, authwallRetries, MaxAuthWallRetries);
+            // Limpiar artefactos de LinkedIn y normalizar espacios
+            description = description
+                .Replace("Show more", "")
+                .Replace("Show less", "");
+            description = Regex.Replace(description, @"\s+", " ").Trim();
 
-                    if (authwallRetries >= MaxAuthWallRetries)
-                    {
-                        _logger.LogWarning(
-                            "LinkedIn authwall persistente después de {Max} reintentos para descripción de {Url}. " +
-                            "Retornando cadena vacía.",
-                            MaxAuthWallRetries, jobUrl);
-                        return string.Empty;
-                    }
+            _logger.LogInformation("Descripcion extraida: {Length} caracteres", description.Length);
+        
+            if (description.Length > 0)
+            {
+                _logger.LogDebug("Preview descripcion: {Preview}", description[..Math.Min(200, description.Length)]);
+            }
 
-                    // Re-autenticar y regenerar cookies
-                    await _authService.EnsureAuthenticatedAsync(ct);
-                    var freshCookies = await _authService.GetCookiesAsync(ct);
-                    cookieHeader = string.Join("; ", freshCookies.Select(c => $"{c.Name}={c.Value}"));
-
-                    // Delay adicional antes de reintentar
-                    await RandomDelayAsync(ct);
-                    continue;
-                }
-
-                using var document = await _htmlParser.ParseDocumentAsync(html, ct);
-
-                var descriptionElement = document.QuerySelector(".show-more-less-html__markup, .description__text, .job-description, .markup");
-                var description = descriptionElement?.TextContent.Trim() ?? string.Empty;
-
-                // Limpiar artefactos de LinkedIn y normalizar espacios
-                description = description
-                    .Replace("Show more", "")
-                    .Replace("Show less", "");
-                description = Regex.Replace(description, @"\s+", " ").Trim();
-
-                _logger.LogInformation("Descripcion extraida: {Length} caracteres", description.Length);
-            
-                if (description.Length > 0)
-                {
-                    _logger.LogDebug("Preview descripcion: {Preview}", description[..Math.Min(200, description.Length)]);
-                }
-
-                return description;
-            } while (authwallDetected);
-
-            // Nunca debería llegar aquí
-            return string.Empty;
+            return description;
         }
         catch (Exception ex)
         {
