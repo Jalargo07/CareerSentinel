@@ -1,3 +1,4 @@
+using System.IO;
 using Microsoft.Playwright;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -18,6 +19,17 @@ public class LinkedInAuthService : ILinkedInAuthService
     private readonly CookiesManager _cookiesManager;
     private IPlaywright? _playwright;
     private IBrowser? _browser;
+    private string? _browserExecutablePath;
+
+    /// <summary>
+    /// Known browser executable paths to search in order of preference.
+    /// </summary>
+    private static readonly (string Name, string Path)[] KnownBrowserPaths =
+    [
+        ("Brave", @"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"),
+        ("Chrome", @"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+        ("Edge", @"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe")
+    ];
 
     public LinkedInAuthService(
         ILogger<LinkedInAuthService> logger,
@@ -51,9 +63,9 @@ public class LinkedInAuthService : ILinkedInAuthService
         }
         catch (PlaywrightException ex)
         {
-            // Playwright or Chromium not installed — operate in no-cookie mode
+            // Playwright or system browser not available — operate in no-cookie mode
             _logger.LogWarning(ex,
-                "Chromium no disponible, usando modo sin cookies. " +
+                "Navegador no disponible, usando modo sin cookies. " +
                 "Las funcionalidades que requieren autenticacion no estaran disponibles.");
         }
     }
@@ -77,7 +89,7 @@ public class LinkedInAuthService : ILinkedInAuthService
 
         try
         {
-            // Usar Playwright para verificar cookies
+            // Inicializar Playwright y detectar navegador del sistema
             if (!await EnsurePlaywrightAsync())
                 return false;
 
@@ -137,11 +149,12 @@ public class LinkedInAuthService : ILinkedInAuthService
             return;
         }
 
-        // Abrir Chromium headed (visible)
+        // Abrir navegador headed (visible) usando el navegador del sistema
         _browser = await _playwright!.Chromium.LaunchAsync(
             new BrowserTypeLaunchOptions
             {
                 Headless = false,
+                ExecutablePath = _browserExecutablePath,
                 Args = new[] { "--disable-blink-features=AutomationControlled" }
             });
 
@@ -265,85 +278,86 @@ public class LinkedInAuthService : ILinkedInAuthService
     }
 
     /// <summary>
-    /// Initializes Playwright and verifies Chromium is available.
-    /// Returns true if Playwright is ready to use, false otherwise.
+    /// Initializes Playwright and detects an installed system browser (Brave, Chrome, or Edge).
+    /// Returns true if Playwright is ready and a browser was found, false otherwise.
     /// </summary>
     private async Task<bool> EnsurePlaywrightAsync()
     {
-        if (_playwright != null)
+        if (_playwright != null && _browserExecutablePath != null)
             return true;
 
+        // 1. Initialize Playwright (needed for the DevTools/CDP protocol)
         try
         {
-            _playwright = await Playwright.CreateAsync();
+            _playwright ??= await Playwright.CreateAsync();
         }
         catch (DllNotFoundException ex)
         {
             _logger.LogError(ex, "Playwright no esta instalado");
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine("\n╔══════════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║  Playwright no esta instalado.                              ║");
-            Console.WriteLine("║                                                             ║");
-            Console.WriteLine("║  Ejecuta el siguiente comando para instalarlo:              ║");
-            Console.WriteLine("║  pwsh -Command \"playwright install chromium\"                ║");
-            Console.WriteLine("║                                                             ║");
-            Console.WriteLine("║  Las funcionalidades que requieren autenticacion de         ║");
-            Console.WriteLine("║  LinkedIn no estaran disponibles hasta que instales         ║");
-            Console.WriteLine("║  Playwright.                                                ║");
-            Console.WriteLine("╚══════════════════════════════════════════════════════════════╝\n");
-            Console.ResetColor();
+            PrintBrowserNotFoundMessage(
+                "Playwright no esta instalado.",
+                "dotnet add package Microsoft.Playwright");
             return false;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error inicializando Playwright");
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine("\n╔══════════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║  Playwright no esta instalado.                              ║");
-            Console.WriteLine("║                                                             ║");
-            Console.WriteLine("║  Ejecuta el siguiente comando para instalarlo:              ║");
-            Console.WriteLine("║  pwsh -Command \"playwright install chromium\"                ║");
-            Console.WriteLine("╚══════════════════════════════════════════════════════════════╝\n");
-            Console.ResetColor();
+            PrintBrowserNotFoundMessage(
+                "Error inicializando Playwright.",
+                "dotnet add package Microsoft.Playwright");
             return false;
         }
 
-        // Verificar si Chromium esta instalado, si no dar instrucciones al usuario
-        try
+        // 2. Detect an installed system browser
+        if (_browserExecutablePath == null)
         {
-            var testBrowser = await _playwright.Chromium.LaunchAsync(
-                new BrowserTypeLaunchOptions { Headless = true });
-            await testBrowser.DisposeAsync();
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex,
-                "Chromium no esta instalado. Ejecuta: pwsh -Command \"playwright install chromium\"");
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine("\n╔══════════════════════════════════════════════════════════════╗");
-            Console.WriteLine("║  Chromium no esta instalado.                                ║");
-            Console.WriteLine("║                                                             ║");
-            Console.WriteLine("║  Ejecuta el siguiente comando para instalarlo:              ║");
-            Console.WriteLine("║  pwsh -Command \"playwright install chromium\"                ║");
-            Console.WriteLine("║                                                             ║");
-            Console.WriteLine("║  Las funcionalidades que requieren autenticacion de         ║");
-            Console.WriteLine("║  LinkedIn no estaran disponibles hasta que instales         ║");
-            Console.WriteLine("║  Chromium.                                                  ║");
-            Console.WriteLine("╚══════════════════════════════════════════════════════════════╝\n");
-            Console.ResetColor();
+            foreach (var (name, path) in KnownBrowserPaths)
+            {
+                if (File.Exists(path))
+                {
+                    _browserExecutablePath = path;
+                    _logger.LogInformation("Navegador detectado: {Browser} en {Path}", name, path);
+                    return true;
+                }
+            }
 
-            // Cleanup Playwright instance since Chromium is not usable
-            try
-            {
-                _playwright.Dispose();
-            }
-            catch
-            {
-                // Best effort cleanup
-            }
+            // No supported browser found
+            _logger.LogWarning("No se encontro Brave, Chrome ni Edge instalado.");
+            PrintBrowserNotFoundMessage(
+                "No se encontro un navegador compatible instalado.",
+                "Instala Brave, Chrome o Edge.");
+
+            // Cleanup Playwright since no browser is usable
+            try { _playwright.Dispose(); } catch { /* Best effort */ }
             _playwright = null;
             return false;
         }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Prints a formatted message to the console when no browser is found.
+    /// </summary>
+    private static void PrintBrowserNotFoundMessage(string title, string instruction)
+    {
+        Console.ForegroundColor = ConsoleColor.Yellow;
+        Console.WriteLine();
+        Console.WriteLine("╔══════════════════════════════════════════════════════════════╗");
+        Console.WriteLine($"║  {title,-58}║");
+        Console.WriteLine("║                                                             ║");
+        Console.WriteLine($"║  {instruction,-58}║");
+        Console.WriteLine("║                                                             ║");
+        Console.WriteLine("║  Navegadores compatibles:                                   ║");
+        Console.WriteLine("║    - Brave:  https://brave.com/download/                    ║");
+        Console.WriteLine("║    - Chrome: https://www.google.com/chrome/                 ║");
+        Console.WriteLine("║    - Edge:   https://www.microsoft.com/edge                 ║");
+        Console.WriteLine("║                                                             ║");
+        Console.WriteLine("║  Las funcionalidades que requieren autenticacion de         ║");
+        Console.WriteLine("║  LinkedIn no estaran disponibles hasta que instales         ║");
+        Console.WriteLine("║  un navegador compatible.                                   ║");
+        Console.WriteLine("╚══════════════════════════════════════════════════════════════╝");
+        Console.WriteLine();
+        Console.ResetColor();
     }
 }
