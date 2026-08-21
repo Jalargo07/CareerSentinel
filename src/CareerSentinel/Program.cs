@@ -133,6 +133,10 @@ services.AddHttpClient("OpenCodeGo", (sp, client) =>
 // Configuration persistence service
 services.AddSingleton<ConfigurationService>();
 
+// LinkedIn Authentication services
+services.AddSingleton<CookiesManager>();
+services.AddSingleton<ILinkedInAuthService, LinkedInAuthService>();
+
 // Async file logger for evaluation logs (shared across LLM services)
 var evaluationLogPath = Path.Combine(AppContext.BaseDirectory, "logs", "evaluaciones.log");
 services.AddSingleton(new AsyncFileLogger(evaluationLogPath));
@@ -171,6 +175,7 @@ var provider = services.BuildServiceProvider();
 var orchestrator = provider.GetRequiredService<JobOrchestrator>();
 var settings = provider.GetRequiredService<IOptions<AppSettings>>().Value;
 var configService = provider.GetRequiredService<ConfigurationService>();
+var linkedInAuthService = provider.GetRequiredService<ILinkedInAuthService>();
 
 // ---------------------------------------------------------------------------
 // 9. First-time setup wizard
@@ -268,6 +273,11 @@ while (true)
         case 0:
             ConsoleMenu.ShowSourcesSubmenu(settings, configService);
             break;
+
+        // Option S: LinkedIn Authentication
+        case ConsoleMenu.LinkedInAuthOption:
+            await ConsoleMenu.ShowLinkedInAuthMenu(linkedInAuthService);
+            break;
     }
 }
 
@@ -355,7 +365,8 @@ static void EnsureAppSettingsExists()
     ""LinkedIn"": {
       ""BaseUrl"": ""https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"",
       ""Location"": ""Argentina"",
-      ""Keywords"": []
+      ""Keywords"": [],
+      ""CookiesPath"": ""linkedin-cookies.json""
     },
     ""AntiBot"": {
       ""EnableUserAgentRotation"": true,

@@ -4,6 +4,9 @@ namespace CareerSentinel.Services;
 
 public static class ConsoleMenu
 {
+    /// <summary>Special return value for the LinkedIn Auth menu option (triggered by "S").</summary>
+    public const int LinkedInAuthOption = 10;
+
     public static int ShowMainMenu()
     {
         Console.WriteLine();
@@ -36,6 +39,7 @@ public static class ConsoleMenu
         Console.WriteLine("  │  [7] Ver configuración completa (solo lectura)       │");
         Console.WriteLine("  │  [8] Editar mi perfil de candidato                   │");
         Console.WriteLine("  │  [9] Editar IA / proveedor                           │");
+        Console.WriteLine("  │  [S] Configurar autenticación LinkedIn               │");
         Console.WriteLine("  └───────────────────────────────────────────────────────┘");
         Console.WriteLine();
         Console.WriteLine("  ┌─ FUENTES DE EMPLEO ──────────────────────────────────┐");
@@ -46,7 +50,7 @@ public static class ConsoleMenu
 
         while (true)
         {
-            var input = Console.ReadLine();
+            var input = Console.ReadLine()?.Trim();
 
             if (int.TryParse(input, out var option) && option >= 0 && option <= 9)
             {
@@ -54,7 +58,13 @@ public static class ConsoleMenu
                 return option;
             }
 
-            Console.WriteLine("  ❌ Opción inválida. Ingresa un número del 0 al 9.");
+            if (string.Equals(input, "S", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.WriteLine();
+                return LinkedInAuthOption;
+            }
+
+            Console.WriteLine("  ❌ Opción inválida. Ingresa un número del 0 al 9 o 'S' para LinkedIn.");
             Console.Write("  Opción: ");
         }
     }
@@ -944,6 +954,126 @@ public static class ConsoleMenu
                     ConfigureSources(settings);
                     configService.Save(settings);
                     Console.WriteLine("  ✅ Configuración guardada en appsettings.json");
+                    break;
+
+                case "0":
+                    return;
+
+                default:
+                    Console.WriteLine("  ❌ Opción inválida.");
+                    break;
+            }
+        }
+    }
+
+    public static async Task ShowLinkedInAuthMenu(ILinkedInAuthService authService)
+    {
+        while (true)
+        {
+            Console.WriteLine();
+            Console.WriteLine("════════════════════════════════════════════════════════════");
+            Console.WriteLine("  Autenticación de LinkedIn (Cookies)");
+            Console.WriteLine("════════════════════════════════════════════════════════════");
+            Console.WriteLine();
+            Console.WriteLine("  LinkedIn requiere cookies válidas para evitar");
+            Console.WriteLine("  captchas y rate limits durante el scraping.");
+
+            // ── Mostrar estado actual de las cookies ─────────────────────
+            Console.WriteLine("────────────────────────────────────────────────────────────");
+            Console.WriteLine("  Estado actual:");
+            try
+            {
+                var isAuthenticated = await authService.IsAuthenticatedAsync();
+                if (isAuthenticated)
+                {
+                    Console.WriteLine("  ✅ Autenticado: Las cookies son válidas y la sesión está activa.");
+                }
+                else
+                {
+                    Console.WriteLine("  ❌ No autenticado: No hay cookies válidas o han expirado.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"  ⚠️  No se pudo verificar: {ex.Message}");
+            }
+
+            Console.WriteLine("────────────────────────────────────────────────────────────");
+            Console.WriteLine("  [1] Verificar estado de autenticación");
+            Console.WriteLine("  [2] Autenticar ahora (abrir navegador)");
+            Console.WriteLine("  [3] Forzar re-autenticación");
+            Console.WriteLine("────────────────────────────────────────────────────────────");
+            Console.WriteLine("  [0] Volver al menú principal");
+            Console.WriteLine("════════════════════════════════════════════════════════════");
+            Console.Write("  Opción: ");
+
+            var input = Console.ReadLine()?.Trim();
+            Console.WriteLine();
+
+            switch (input)
+            {
+                case "1":
+                    Console.WriteLine("  Verificando estado de autenticación...");
+                    try
+                    {
+                        var isAuthenticated = await authService.IsAuthenticatedAsync();
+                        if (isAuthenticated)
+                        {
+                            Console.WriteLine("  ✅ Autenticado: Las cookies son válidas y la sesión está activa.");
+                        }
+                        else
+                        {
+                            Console.WriteLine("  ❌ No autenticado: No hay cookies válidas o han expirado.");
+                            Console.WriteLine("  → Usa la opción [2] para iniciar sesión.");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"  ⚠️  Error verificando autenticación: {ex.Message}");
+                    }
+                    Console.WriteLine();
+                    break;
+
+                case "2":
+                    Console.WriteLine("  Iniciando sesión en LinkedIn...");
+                    Console.WriteLine("  Se abrirá un navegador. Inicia sesión manualmente.");
+                    Console.WriteLine("  Tienes 2 minutos para completar el login.");
+                    Console.WriteLine();
+                    try
+                    {
+                        await authService.EnsureAuthenticatedAsync();
+                        Console.WriteLine("  ✅ ¡Autenticación exitosa! Cookies guardadas.");
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        Console.WriteLine("  ⏰ Tiempo de login agotado. Intenta de nuevo con la opción [2].");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"  ❌ Error durante la autenticación: {ex.Message}");
+                        Console.WriteLine("  → Verifica que Playwright y Chromium estén instalados.");
+                    }
+                    Console.WriteLine();
+                    break;
+
+                case "3":
+                    Console.WriteLine("  Forzando re-autenticación...");
+                    Console.WriteLine("  Se abrirá un navegador. Inicia sesión manualmente.");
+                    Console.WriteLine();
+                    try
+                    {
+                        await authService.EnsureAuthenticatedAsync();
+                        Console.WriteLine("  ✅ ¡Re-autenticación exitosa! Cookies actualizadas.");
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        Console.WriteLine("  ⏰ Tiempo de login agotado. Intenta de nuevo.");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"  ❌ Error durante la re-autenticación: {ex.Message}");
+                    }
+                    Console.WriteLine();
                     break;
 
                 case "0":

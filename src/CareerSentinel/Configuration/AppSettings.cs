@@ -52,6 +52,7 @@ public class LinkedInSettings
     public string BaseUrl { get; set; } = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search";
     public string Location { get; set; } = "Argentina";
     public List<string> Keywords { get; set; } = [];
+    public string CookiesPath { get; set; } = "linkedin-cookies.json";
 }
 
 public class NotionSettings
