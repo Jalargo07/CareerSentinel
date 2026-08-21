@@ -314,10 +314,30 @@ public class JobOrchestrator
                             await _jobCacheService.AddSeenIdAsync(offer.Id, ct);
 
                             _logger.LogInformation(
-                                "[{PortalName}] [Paso2 batch {Batch}/{Total}] Evaluación: {Title} - Score: {Score}/{Threshold} - Match: {Match}",
-                                scraper.PortalName, batchNum, batchCount, offer.Title, evaluation.Score, threshold, evaluation.Match);
+                                "[{PortalName}] [Paso2 batch {Batch}/{Total}] Evaluación: {Title} - Score: {Score} - Match: {Match}",
+                                scraper.PortalName, batchNum, batchCount, offer.Title, evaluation.Score, evaluation.Match);
 
-                            if (evaluation.Score >= threshold)
+                            // Respetar la decisión del LLM: match=true significa que el LLM ya evaluó que cumple
+                            if (evaluation.Match)
+                            {
+                                // Apply C# logic for "Cualquiera" modality
+                                if (_settings.Candidate.PreferredModality == "Cualquiera")
+                                {
+                                    var isRemote = analysis.Modalidad.Equals("Remoto", StringComparison.OrdinalIgnoreCase);
+                                    var isInPreferredRegion = _settings.Candidate.PreferredRegions.Any(r =>
+                                        analysis.Ubicacion.Contains(r, StringComparison.OrdinalIgnoreCase));
+
+                                    if (!isRemote && !isInPreferredRegion)
+                                    {
+                                        evaluation = evaluation with { Match = false, Score = 10 };
+                                        _logger.LogInformation(
+                                            "[{PortalName}] C# Filter: Oferta {Title} descartada - {Modality} fuera de regiones preferidas",
+                                            scraper.PortalName, offer.Title, analysis.Modalidad);
+                                    }
+                                }
+                            }
+
+                            if (evaluation.Match)
                             {
                                 _logger.LogInformation(
                                     "[{PortalName}] Match fuerte detectado: {Title} @ {Company} (Score: {Score})",

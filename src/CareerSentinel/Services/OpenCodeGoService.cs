@@ -262,11 +262,14 @@ PERFIL:
 OFERTAS:
 {offersText}
 
-Para cada oferta responde con score (0-100) y match (true/false):
-- 85-100: Match perfecto
-- 50-84: Buen match
-- 25-49: Match parcial
-- 0-24: Mal match
+Para cada oferta aplica la PRIMERA regla que coincida (R1-R5) y responde con score y match:
+- R1: Texto invalido o 0 tecnologias => score 0, match false
+- R2: (Presencial o Híbrido) y ubicación fuera de regiones preferidas => score 10, match false
+- R3: Oferta Senior y candidato Junior => score 25, match false
+- R4: Candidato tiene MENOS de 2 tecnologías de la oferta => score 30, match false
+- R5: Cumple base (techs>=2, seniority compatible, región OK o remoto) => score 85, match true
+
+REGLA CRÍTICA: match es true SOLO si score == 85. Usar SOLO estos scores: 0, 10, 25, 30, 85.
 
 JSON con wrapper:
 {{
@@ -301,9 +304,10 @@ REGLAS:
                     var eval = JsonSerializer.Deserialize<EvaluationResult>(item.GetRawText(), JsonOptions);
                     if (eval is not null)
                     {
+                        // Respetar la decisión del LLM: match=true SOLO si score==85
                         results.Add(eval with
                         {
-                            Match = eval.Score >= 50,
+                            Match = eval.Score == 85,
                             Cumple = eval.Cumple ?? [],
                             NoCumple = eval.NoCumple ?? [],
                             Razon = eval.Razon ?? string.Empty
@@ -332,7 +336,8 @@ REGLAS:
 
                     return results.Take(expectedCount).Select(r => r with
                     {
-                        Match = r.Score >= 50,
+                        // Respetar la decisión del LLM: match=true SOLO si score==85
+                        Match = r.Score == 85,
                         Cumple = r.Cumple ?? [],
                         NoCumple = r.NoCumple ?? [],
                         Razon = r.Razon ?? string.Empty
