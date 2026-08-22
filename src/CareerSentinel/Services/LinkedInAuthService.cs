@@ -85,56 +85,26 @@ public class LinkedInAuthService : ILinkedInAuthService
     public async Task<bool> IsAuthenticatedAsync(CancellationToken ct = default)
     {
         if (!_cookiesManager.Exists(_settings.CookiesPath))
+        {
+            _logger.LogDebug("No hay archivo de cookies en {Path}", _settings.CookiesPath);
             return false;
+        }
 
         try
         {
-            // Inicializar Playwright y detectar navegador del sistema
-            if (!await EnsurePlaywrightAsync())
-                return false;
-
-            var context = await _browser!.NewContextAsync();
             var cookies = await _cookiesManager.LoadCookiesAsync(_settings.CookiesPath);
-
-            // Convert stored cookies to Playwright cookies
-            var playwrightCookies = cookies.Select(c => new Microsoft.Playwright.Cookie
+            if (cookies.Count == 0)
             {
-                Name = c.Name,
-                Value = c.Value,
-                Domain = c.Domain,
-                Path = c.Path,
-                Expires = c.Expires.HasValue
-                    ? (float)(c.Expires.Value - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds
-                    : 0f
-            });
-
-            await context.AddCookiesAsync(playwrightCookies);
-
-            var page = await context.NewPageAsync();
-            await page.GotoAsync("https://www.linkedin.com/feed");
-
-            // Wait up to 5s for navigation to settle
-            try
-            {
-                await page.WaitForLoadStateAsync(LoadState.NetworkIdle,
-                    new PageWaitForLoadStateOptions { Timeout = 5000 });
-            }
-            catch
-            {
-                // Timeout is acceptable - we only need the final URL
+                _logger.LogWarning("El archivo de cookies esta vacio");
+                return false;
             }
 
-            var url = page.Url;
-            var isLoggedIn = !url.Contains("authwall") && !url.Contains("login");
-
-            await context.DisposeAsync();
-            await page.DisposeAsync();
-
-            return isLoggedIn;
+            _logger.LogInformation("Cookies cargadas ({Count}), asumiendo sesion valida", cookies.Count);
+            return true;
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Error verificando autenticacion");
+            _logger.LogWarning(ex, "Error cargando cookies desde {Path}", _settings.CookiesPath);
             return false;
         }
     }

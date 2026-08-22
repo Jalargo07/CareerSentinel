@@ -82,7 +82,13 @@ public partial class CompuTrabajoScraper : IJobScraper
 
         try
         {
-            var html = await _httpClient.GetStringAsync(jobUrl, ct);
+            // Usar HttpRequestMessage para incluir header Referer
+            using var request = new HttpRequestMessage(HttpMethod.Get, jobUrl);
+            request.Headers.TryAddWithoutValidation("Referer", "https://www.computrabajo.com.co/");
+
+            var response = await _httpClient.SendAsync(request, ct);
+            response.EnsureSuccessStatusCode();
+            var html = await response.Content.ReadAsStringAsync(ct);
 
             // Estrategia 1: Buscar por el patrón real de CompuTrabajo
             // Buscar "Descripción de la oferta" y extraer el contenido siguiente
@@ -154,7 +160,7 @@ public partial class CompuTrabajoScraper : IJobScraper
         var parser = new HtmlParser();
         var document = parser.ParseDocument(html);
 
-        var cards = document.QuerySelectorAll("article.box_offer");
+        var cards = document.QuerySelectorAll(".box_offer");
 
         _logger.LogInformation("CompuTrabajo: HTML parseado, {Count} articles encontrados", cards.Length);
 

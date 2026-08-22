@@ -152,6 +152,29 @@ public class JobOrchestrator
                             continue;
                         }
 
+                        // ============================================
+                        // PRE-FILTER: "Cualquiera" modality (antes del LLM)
+                        // Remoto → pasa siempre (para cualquier región)
+                        // Presencial/Híbrido → solo si ubicación contiene PreferredRegion
+                        // ============================================
+                        if (_settings.Candidate.PreferredModality == "Cualquiera")
+                        {
+                            var offerLocation = offer.Location;
+                            var isLikelyRemote = offerLocation.Contains("remoto", StringComparison.OrdinalIgnoreCase)
+                                              || offerLocation.Contains("remote", StringComparison.OrdinalIgnoreCase);
+                            var isInPreferredRegion = _settings.Candidate.PreferredRegions.Any(r =>
+                                offerLocation.Contains(r, StringComparison.OrdinalIgnoreCase));
+
+                            if (!isLikelyRemote && !isInPreferredRegion)
+                            {
+                                _logger.LogInformation(
+                                    "[{PortalName}] Pre-filter Cualquiera: {Title} descartada - ubicación '{Location}' fuera de regiones preferidas y no es remoto",
+                                    scraper.PortalName, offer.Title, offerLocation);
+                                await _jobCacheService.AddSeenIdAsync(offer.Id, ct);
+                                continue;
+                            }
+                        }
+
                         _logger.LogInformation(
                             "[{PortalName}] [Scrape] {Title} @ {Company}",
                             scraper.PortalName, offer.Title, offer.Company);

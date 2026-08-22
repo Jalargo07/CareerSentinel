@@ -74,7 +74,7 @@ public partial class LinkedInScraper : IJobScraper
         };
 
         var keywordQuery = Uri.EscapeDataString($"\"{keyword}\"");
-        var locationQuery = Uri.EscapeDataString(string.Join(" OR ", _candidateProfile.PreferredRegions));
+        var locationQuery = Uri.EscapeDataString(_settings.Location);
         
         var url = $"{_settings.BaseUrl}?" +
                   $"keywords={keywordQuery}" +
@@ -222,7 +222,7 @@ public partial class LinkedInScraper : IJobScraper
         // Log: tamaño del HTML
         _logger.LogInformation("HTML recibido: {Length} caracteres", html.Length);
 
-        var cards = document.QuerySelectorAll("li, .base-card, .job-search-card");
+        var cards = document.QuerySelectorAll("div.base-card, li");
         _logger.LogInformation("Cards encontrados por CSS selector: {Count}", cards.Count);
 
         // Log: primeros 500 chars del HTML para diagnóstico
@@ -297,18 +297,14 @@ public partial class LinkedInScraper : IJobScraper
 
     private bool ShouldEvaluateJob(string title, string description)
     {
-        // Keywords que indican nivel superior al que buscas (Junior/Entry)
+        // Solo descartar niveles Senior+ REALES (no mid-level ni thresholds agresivos)
         var excludeKeywords = new[] { 
-            // Nivel Senior+
+            // Nivel Senior+ real
             "senior", "sr.", "sr ", "lead", "principal", "architect", "staff", "director", 
             "head of", "vp of", "cto", "chief", "expert",
-            // Años de experiencia explícitos
+            // Años de experiencia que indican Senior+
             "5+ years", "5+ anios", "5+ años", "7+ years", "7+ anios", "7+ años",
-            "10+ years", "10+ anios", "10+ años", "8+ years", "8+ anios", "8+ años",
-            "3+ years", "3+ anios", "3+ años", // Mid-level threshold
-            // Nivel explícito
-            "mid-level", "mid level", "mid senior", "pleno", // pleno = mid en portugués
-            "experienced", "specialist"
+            "10+ years", "10+ anios", "10+ años", "8+ years", "8+ anios", "8+ años"
         };
         
         var combinedText = $"{title} {description}".ToLowerInvariant();

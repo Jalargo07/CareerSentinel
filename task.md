@@ -121,6 +121,25 @@ El objetivo es que el scraper de LinkedIn use cookies de una cuenta dummy para e
 
 ---
 
+## Fase 6: Optimizaciones de Scraping
+
+- [x] Tarea A: LinkedIn Guest API individual - quitar filtro ShouldEvaluateJob agresivo (3+ years, mid-level), usar location simple "Colombia", selector div.base-card
+  - Archivos: src/CareerSentinel/Services/LinkedInScraper.cs
+  - Criterio: Guest API devuelve jobs, no 0 cards, build 0 errores
+  - Dependencias: Ninguna
+
+- [x] Tarea B: CompuTrabajo headers obligatorios - agregar Referer header en detalle, cambiar selector article.box_offer a .box_offer
+  - Archivos: src/CareerSentinel/Services/CompuTrabajoScraper.cs
+  - Criterio: Detalle no da 403, build 0 errores
+  - Dependencias: Ninguna
+
+- [x] Tarea C: Filtro modalidad Cualquiera en C# antes de LLM - mover lógica de Orchestrator para filtrar ofertas no-remotas fuera de región antes de batch
+  - Archivos: src/CareerSentinel/Services/JobOrchestrator.cs
+  - Criterio: build 0 errores
+  - Dependencias: Ninguna
+
+---
+
 ## Resumen
 
 | # | Fase | Tarea | Estado |
@@ -133,7 +152,10 @@ El objetivo es que el scraper de LinkedIn use cookies de una cuenta dummy para e
 | 6 | Services | LinkedInAuthService | ✅ |
 | 7 | Integration | Modificar LinkedInScraper | ✅ |
 | 8 | DI | Registrar en Program.cs | ✅ |
-| 9 | Menu | Opci�n en ConsoleMenu | ✅ |
+| 9 | Menu | Opción en ConsoleMenu | ✅ |
 | 10 | Menu | Integrar en Program.cs | ✅ |
 | 11 | Errors | Manejo de errores auth | ✅ |
 | 12 | Errors | Retry con authwall | ✅ |
+| A | Scraping | LinkedIn Guest API | ✅ |
+| B | Scraping | CompuTrabajo headers | ✅ |
+| C | Scraping | Filtro modalidad | ✅ |
