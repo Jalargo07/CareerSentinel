@@ -18,8 +18,6 @@ public partial class LinkedInScraper : IJobScraper
     private readonly RateLimitSettings _rateLimit;
     private readonly CandidateProfile _candidateProfile;
     private readonly HtmlParser _htmlParser;
-    private readonly ILinkedInAuthService _authService;
-
     private static readonly string[] UserAgents =
     [
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
@@ -30,8 +28,7 @@ public partial class LinkedInScraper : IJobScraper
     public LinkedInScraper(
         IHttpClientFactory httpClientFactory,
         IOptions<AppSettings> settings,
-        ILogger<LinkedInScraper> logger,
-        ILinkedInAuthService authService)
+        ILogger<LinkedInScraper> logger)
     {
         _httpClient = httpClientFactory.CreateClient("LinkedIn");
         _logger = logger;
@@ -39,31 +36,12 @@ public partial class LinkedInScraper : IJobScraper
         _rateLimit = settings.Value.RateLimiting;
         _candidateProfile = settings.Value.Candidate;
         _htmlParser = new HtmlParser();
-        _authService = authService;
     }
 
     public async Task<List<JobOffer>> SearchAsync(string keyword, string location, CancellationToken ct = default)
     {
-        // Auth OPCIONAL: intentar obtener cookies existentes SIN abrir navegador
-        IReadOnlyList<CookieData> cookies = [];
-        var cookieHeader = string.Empty;
-        try
-        {
-            if (await _authService.IsAuthenticatedAsync(ct))
-            {
-                cookies = await _authService.GetCookiesAsync(ct);
-                cookieHeader = string.Join("; ", cookies.Select(c => $"{c.Name}={c.Value}"));
-                _logger.LogInformation("Usando cookies de LinkedIn ({Count})", cookies.Count);
-            }
-            else
-            {
-                _logger.LogInformation("Sin cookies de LinkedIn, usando Guest API");
-            }
-        }
-        catch
-        {
-            _logger.LogInformation("Fallback a Guest API (no se pudieron obtener cookies)");
-        }
+        // Guest API: NO necesita cookies (las 56 cookies rompen la respuesta)
+        _logger.LogInformation("Usando Guest API sin cookies para LinkedIn Search");
 
         // Determinar niveles de experiencia segun el perfil del candidato
         var experienceFilter = _candidateProfile.YearsExperience switch
@@ -89,7 +67,7 @@ public partial class LinkedInScraper : IJobScraper
 
         try
         {
-            using var request = BuildHttpRequest(url, cookieHeader);
+            using var request = BuildHttpRequest(url);
             using var response = await _httpClient.SendAsync(request, ct);
 
             if (response.StatusCode == HttpStatusCode.TooManyRequests)
@@ -120,34 +98,13 @@ public partial class LinkedInScraper : IJobScraper
 
     public async Task<string> GetDescriptionAsync(string jobUrl, CancellationToken ct = default)
     {
-        _logger.LogInformation("Obteniendo descripcion detallada: {Url}", jobUrl);
-
-        // Auth OPCIONAL: intentar obtener cookies existentes SIN abrir navegador
-        IReadOnlyList<CookieData> cookies = [];
-        var cookieHeader = string.Empty;
-        try
-        {
-            if (await _authService.IsAuthenticatedAsync(ct))
-            {
-                cookies = await _authService.GetCookiesAsync(ct);
-                cookieHeader = string.Join("; ", cookies.Select(c => $"{c.Name}={c.Value}"));
-                _logger.LogInformation("Usando cookies de LinkedIn ({Count}) para descripcion", cookies.Count);
-            }
-            else
-            {
-                _logger.LogInformation("Sin cookies de LinkedIn, obteniendo descripcion con Guest API");
-            }
-        }
-        catch
-        {
-            _logger.LogInformation("Fallback a Guest API para descripcion (no se pudieron obtener cookies)");
-        }
+        _logger.LogInformation("Obteniendo descripcion detallada (Guest API sin cookies): {Url}", jobUrl);
 
         await RandomDelayAsync(ct);
 
         try
         {
-            using var request = BuildHttpRequest(jobUrl, cookieHeader);
+            using var request = BuildHttpRequest(jobUrl);
             using var response = await _httpClient.SendAsync(request, ct);
 
             if (response.StatusCode == HttpStatusCode.TooManyRequests)
